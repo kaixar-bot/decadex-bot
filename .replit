@@ -20,9 +20,3 @@ expertMode = true
 
 [userenv.shared]
 TELEGRAM_BOT_TOKEN = "8523090160:AAH6l56baLVytUjmtikpXGHs3M0nHDmqM0Q"
-CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000"
-
-[userenv.shared."https:"]
-
-[userenv.shared."https:".""]
-"rpc.sepolia.org" = "https://devnet.zama.ai"
