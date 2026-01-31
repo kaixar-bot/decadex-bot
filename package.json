@@ -1,13 +1,14 @@
 {
-  "name": "veilbid-bot",
+  "name": "decadex-bot",
   "version": "1.0.0",
-  "description": "Bot demo",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.66.0",
-    "dotenv": "^16.4.5"
+    "@zama-fhe/relayer-sdk": "^0.4.0-5",
+    "dotenv": "^16.4.0",
+    "ethers": "^6.11.0",
+    "node-telegram-bot-api": "^0.66.0"
   }
 }

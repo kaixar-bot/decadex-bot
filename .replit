@@ -19,4 +19,6 @@ expertMode = true
 [userenv]
 
 [userenv.shared]
-TELEGRAM_BOT_TOKEN = "8523090160:AAH6l56baLVytUjmtikpXGHs3M0nHDmqM0Q"
+TELEGRAM_BOT_TOKEN = "8042281786:AAEOEHs55HM1h7CFDCT_2ZjGyAFm71cN1As"
+RPC_URL = "https://rpc.sepolia.org"
+PRIVATE_KEY = "0xf248c45e6407c6c9e47d87e88d3f696afaddf0205c814d8b6579ecd836fd70d6"

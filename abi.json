@@ -1,0 +1,12 @@
+[
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "encryptedValue", "type": "bytes32"},
+      {"internalType": "bytes", "name": "inputProof", "type": "bytes"}
+    ],
+    "name": "bid",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
