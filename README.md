@@ -1,122 +1,157 @@
-# DecaDex Bot - Zama fhEVM Confidential Bids
+# DecaDex Bot - Confidential Auction Platform
 
-Bot Telegram cho phÃ©p Äáº¥u giÃ¡ vá»i mÃ£ hÃ³a FHE (Fully Homomorphic Encryption) sá»­ dá»¥ng Zama fhEVM.
+A Telegram bot for confidential auctions using Fully Homomorphic Encryption (FHE) on Zama fhEVM.
 
-## TÃ­nh nÄng
+## Overview
 
-- ð **MÃ£ hÃ³a FHE**: GiÃ¡ tháº§u ÄÆ°á»£c mÃ£ hÃ³a hoÃ n toÃ n, khÃ´ng ai cÃ³ thá» xem sá» tiá»n
-- ð¤ **Telegram Bot**: Giao diá»n ÄÆ¡n giáº£n qua Telegram
-- âï¸ **Blockchain**: Giao dá»ch trÃªn Sepolia testnet
-- ð¡ï¸ **Báº£o máº­t**: Private key ÄÆ°á»£c giá»¯ an toÃ n
+DecaDex Bot enables privacy-preserving auctions where bid amounts are encrypted end-to-end. No one - not even the contract owner - can see individual bid values until the auction ends.
 
-## YÃªu cáº§u
+## Features
+
+- **FHE Encrypted Bids**: Bid amounts are encrypted using Zama's fhEVM, ensuring complete privacy
+- **Telegram Interface**: Simple and intuitive bidding through Telegram commands
+- **Blockchain Security**: All transactions are recorded on Ethereum Sepolia testnet
+- **Secure Key Management**: Private keys are securely handled via environment variables
+
+## Prerequisites
 
 - Node.js 18+
-- NPM hoáº·c Yarn
-- Telegram Bot Token (tá»« @BotFather)
-- Ethereum wallet vá»i private key
-- RPC URL (Alchemy/Infura/etc.)
+- npm or yarn
+- Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
+- Ethereum wallet with private key
+- RPC URL (Alchemy/Infura/public RPC)
 
-## CÃ i Äáº·t
+## Installation
 
 ```bash
 # Clone repository
 git clone https://github.com/kaixar-bot/decadex-bot.git
 cd decadex-bot
 
-# CÃ i Äáº·t dependencies
+# Install dependencies
 npm install
 
-# Cáº¥u hÃ¬nh environment variables
+# Set up environment variables
 cp .env.example .env
-# Sá»­a file .env vá»i cÃ¡c giÃ¡ trá» tháº­t
+# Edit .env with your actual values
 
-# Cháº¡y bot
+# Start the bot
 npm start
 ```
 
 ## Environment Variables
 
-### Required (Báº¯t buá»c)
+### Required
 
-| Variable | MÃ´ táº£ |
-|----------|-------|
-| `TELEGRAM_BOT_TOKEN` | Token tá»« @BotFather |
-| `PRIVATE_KEY` | Private key vÃ­ Ethereum (64 hex chars) |
-| `RPC_URL` | URL RPC endpoint (Alchemy/Infura/etc.) |
+| Variable | Description |
+|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Token from @BotFather |
+| `PRIVATE_KEY` | Ethereum wallet private key (with 0x prefix) |
 
-### Optional (CÃ³ default)
+### Optional
 
-| Variable | Default | MÃ´ táº£ |
-|----------|---------|-------|
-| `CONTRACT_ADDRESS` | `0xe9c1349c959f98f3d6e1c25b1bc3a4376921423d` | Äá»a chá» smart contract |
-| `RELAYER_URL` | `https://relayer.testnet.zama.org` | URL Zama relayer |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RPC_URL` | Sepolia public RPC | Ethereum RPC endpoint |
+| `CONTRACT_ADDRESS` | DecaDex testnet | Auction contract address |
+| `RELAYER_URL` | Zama testnet relayer | fhEVM relayer URL |
 
-> **Note**: KHÃNG cáº§n `ALCHEMY_API_KEY` riÃªng náº¿u ÄÃ£ cÃ³ `RPC_URL` Äáº§y Äá»§.
+## Replit Deployment
 
-## Sá»­ dá»¥ng
+For Replit, use **Secrets** (not .env file):
 
-### Telegram Commands
+1. Open your Replit project
+2. Click "Tools" > "Secrets"
+3. Add the required variables:
+   - `TELEGRAM_BOT_TOKEN`
+   - `PRIVATE_KEY`
+4. Click "Run"
 
-| Command | MÃ´ táº£ |
-|---------|-------|
-| `/start` | Báº¯t Äáº§u vÃ  xem hÆ°á»ng dáº«n |
-| `/bid <amount>` | Äáº·t giÃ¡ tháº§u (vÃ­ dá»¥: `/bid 100`) |
-| `/status` | Kiá»m tra tráº¡ng thÃ¡i auction |
-| `/help` | Xem trá»£ giÃºp |
+## Bot Commands
 
-### VÃ­ dá»¥
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message and quick guide |
+| `/bid <amount>` | Place an encrypted bid (e.g., `/bid 100`) |
+| `/status` | Check bot and blockchain connection status |
+| `/help` | Show all available commands |
 
-```
-User: /bid 500
-Bot: â³ Äang xá»­ lÃ½ bid 500...
-     ð Äang mÃ£ hÃ³a vá»i FHE...
-     ð¤ Äang gá»­i transaction...
-     â Bid thÃ nh cÃ´ng!
-```
-
-## Cáº¥u trÃºc project
+### Example Usage
 
 ```
-decadex-bot/
-âââ index.js              # Entry point chÃ­nh
-âââ src/
-â   âââ validators.js     # Validation functions
-â   âââ fhevm-singleton.js # FhEVM instance management
-â   âââ contract-abi.js   # Smart contract ABI
-âââ .env.example          # Template environment
-âââ package.json
-âââ README.md
+User: /bid 150
+Bot: Processing bid 150...
+     Encrypting with FHE...
+     Sending transaction...
+     
+     Bid successful!
+     Tx: 0x1234...abcd
+     Block: 12345678
 ```
-
-## Troubleshooting
-
-### Lá»i 409 Conflict
-Bot ÄÃ£ tá»± Äá»ng xá»­ lÃ½ báº±ng cÃ¡ch xÃ³a webhook trÆ°á»c khi polling. Náº¿u váº«n gáº·p lá»i:
-1. Äá»£i vÃ i phÃºt cho session cÅ© timeout
-2. Äáº£m báº£o chá» cÃ³ 1 instance bot cháº¡y
-
-### Lá»i "Thiáº¿u biáº¿n mÃ´i trÆ°á»ng"
-Kiá»m tra ÄÃ£ thiáº¿t láº­p Äá»§ 3 biáº¿n báº¯t buá»c:
-- `TELEGRAM_BOT_TOKEN`
-- `PRIVATE_KEY`
-- `RPC_URL`
-
-### Lá»i FhEVM
-- Äáº£m báº£o RPC_URL lÃ  Sepolia endpoint há»£p lá»
-- Kiá»m tra RELAYER_URL ÄÃºng format
 
 ## Tech Stack
 
-- **Runtime**: Node.js (ESM modules)
-- **Telegram**: node-telegram-bot-api
+- **Runtime**: Node.js 18+
+- **Bot Framework**: node-telegram-bot-api
 - **Blockchain**: ethers.js v6
-- **FHE**: @zama-fhe/relayer-sdk
+- **FHE Encryption**: @zama-fhe/relayer-sdk
+- **Network**: Ethereum Sepolia Testnet
+- **FHE Infrastructure**: Zama fhEVM
+
+## Architecture
+
+```
+User (Telegram)
+     |
+     v
+[Telegram Bot] ---> [fhEVM SDK] ---> [Encrypted Input]
+     |                                      |
+     v                                      v
+[ethers.js] -----> [Sepolia Testnet] <---- [Zama Relayer]
+     |
+     v
+[DecaDex Contract]
+```
+
+## Security Considerations
+
+- **Never commit** `.env` or expose private keys
+- Use **Replit Secrets** for deployment
+- Contract address is checksummed using `ethers.getAddress()`
+- All bid amounts are encrypted before leaving the client
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"Contract address is not a valid address"**
+   - Ensure the contract address is properly checksummed
+   - The bot automatically handles this via `ethers.getAddress()`
+
+2. **"Invalid relayerUrl: undefined"**
+   - Set `RELAYER_URL` or use the default Zama testnet relayer
+
+3. **Bot not responding**
+   - Check `TELEGRAM_BOT_TOKEN` is correct
+   - Ensure no other instance is running (409 Conflict)
+
+4. **Transaction failing**
+   - Verify wallet has Sepolia ETH for gas
+   - Check RPC_URL is working
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-PRs welcome! Vui lÃ²ng táº¡o issue trÆ°á»c khi submit PR lá»n.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## Links
+
+- [Zama fhEVM Documentation](https://docs.zama.ai/fhevm)
+- [Telegram Bot API](https://core.telegram.org/bots/api)
+- [ethers.js Documentation](https://docs.ethers.org/v6/)
