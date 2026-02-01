@@ -4,6 +4,8 @@ import { createInstance } from "@zama-fhe/relayer-sdk/node";
  * FhEVM Singleton Module
  * Quáº£n lÃ½ má»t instance fhEVM duy nháº¥t cho toÃ n bá» á»©ng dá»¥ng
  * Sá»­ dá»¥ng Singleton pattern Äá» trÃ¡nh táº¡o instance má»i má»i láº§n bid
+ * 
+ * FIX: Import tá»« @zama-fhe/relayer-sdk/node (cÃ³ /node)
  */
 
 // Biáº¿n private lÆ°u trá»¯ instance duy nháº¥t
@@ -31,158 +33,147 @@ const DEFAULT_CONFIG = {
 
 /**
  * Láº¥y relayerUrl tá»« config hoáº·c environment hoáº·c default
- * @param {Object} config - Config object
- * @returns {string} Relayer URL
  */
 function getRelayerUrl(config) {
-  // Æ¯u tiÃªn: config > env > default
-  const relayerUrl = config?.relayerUrl || process.env.RELAYER_URL || DEFAULT_RELAYER_URL;
-  console.log(`[FhEVM] Sá»­ dá»¥ng Relayer URL: ${relayerUrl}`);
-  return relayerUrl;
+  return config?.relayerUrl || process.env.RELAYER_URL || DEFAULT_RELAYER_URL;
 }
 
 /**
- * Khá»i táº¡o fhEVM instance (chá» cháº¡y 1 láº§n)
- * @param {Object} config - Cáº¥u hÃ¬nh cho fhEVM
- * @param {string} config.networkUrl - RPC URL cá»§a blockchain
- * @param {string} config.verifyingContract - Äá»a chá» contract Äá» verify
- * @param {string} [config.relayerUrl] - URL cá»§a relayer (optional, cÃ³ default)
- * @returns {Promise<Object>} fhEVM instance
- * @throws {Error} Náº¿u khá»i táº¡o tháº¥t báº¡i
+ * Kiá»m tra fhEVM ÄÃ£ ÄÆ°á»£c khá»i táº¡o chÆ°a
+ * @returns {boolean} true náº¿u ÄÃ£ khá»i táº¡o
  */
-async function initializeFhEVM(config) {
-  console.log("[FhEVM] Báº¯t Äáº§u khá»i táº¡o fhEVM...");
-  console.log(`[FhEVM] Config nháº­n ÄÆ°á»£c: ${JSON.stringify({
-    networkUrl: config?.networkUrl ? "***" : "undefined",
-    verifyingContract: config?.verifyingContract || "undefined",
-    relayerUrl: config?.relayerUrl || "(sáº½ dÃ¹ng default)"
-  })}`);
-
-  // Kiá»m tra config báº¯t buá»c
-  if (!config || !config.networkUrl) {
-    const error = "[FhEVM] Lá»i cáº¥u hÃ¬nh: networkUrl lÃ  báº¯t buá»c";
-    console.error(error);
-    throw new Error(error);
-  }
-
-  // Náº¿u ÄÃ£ cÃ³ instance, tráº£ vá» luÃ´n
-  if (fhevmInstance) {
-    console.log("[FhEVM] Instance ÄÃ£ tá»n táº¡i, sá»­ dá»¥ng láº¡i");
-    return fhevmInstance;
-  }
-
-  // Náº¿u Äang trong quÃ¡ trÃ¬nh khá»i táº¡o, chá» promise hiá»n táº¡i
-  if (isInitializing && initializationPromise) {
-    console.log("[FhEVM] Äang khá»i táº¡o, chá» promise hiá»n táº¡i...");
-    return initializationPromise;
-  }
-
-  // Báº¯t Äáº§u khá»i táº¡o
-  isInitializing = true;
-  console.log("[FhEVM] Báº¯t Äáº§u táº¡o instance má»i...");
-
-  initializationPromise = (async () => {
-    try {
-      // Láº¥y relayerUrl
-      const relayerUrl = getRelayerUrl(config);
-      
-      console.log("[FhEVM] Äang gá»i createInstance vá»i config:");
-      console.log(`  - networkUrl: ${config.networkUrl.substring(0, 30)}...`);
-      console.log(`  - verifyingContract: ${config.verifyingContract}`);
-      console.log(`  - relayerUrl: ${relayerUrl}`);
-
-      // Táº¡o instance vá»i relayerUrl
-      fhevmInstance = await createInstance({
-        networkUrl: config.networkUrl,
-        verifyingContract: config.verifyingContract,
-        relayerUrl: relayerUrl,
-      });
-
-      console.log("[FhEVM] â Khá»i táº¡o thÃ nh cÃ´ng!");
-      console.log(`[FhEVM] Instance cÃ³ cÃ¡c methods: ${Object.keys(fhevmInstance).join(", ")}`);
-
-      return fhevmInstance;
-    } catch (error) {
-      // Reset state Äá» cÃ³ thá» thá»­ láº¡i
-      fhevmInstance = null;
-      console.error("[FhEVM] â Lá»i khi khá»i táº¡o fhEVM:");
-      console.error(`[FhEVM] Error name: ${error.name}`);
-      console.error(`[FhEVM] Error message: ${error.message}`);
-      console.error(`[FhEVM] Stack trace: ${error.stack}`);
-      throw new Error(`KhÃ´ng thá» khá»i táº¡o fhEVM: ${error.message}`);
-    } finally {
-      isInitializing = false;
-      initializationPromise = null;
-    }
-  })();
-
-  return initializationPromise;
+export function isInitialized() {
+  return fhevmInstance !== null;
 }
 
 /**
- * Láº¥y instance hiá»n táº¡i (khÃ´ng khá»i táº¡o má»i)
- * @returns {Object|null} fhEVM instance hoáº·c null náº¿u chÆ°a khá»i táº¡o
+ * Láº¥y instance fhEVM hiá»n táº¡i
+ * Throw error náº¿u chÆ°a khá»i táº¡o
+ * @returns {object} fhEVM instance
  */
-function getFhEVMInstance() {
+export function getFhEVMInstance() {
   if (!fhevmInstance) {
-    console.warn("[FhEVM] Cáº£nh bÃ¡o: getFhEVMInstance ÄÆ°á»£c gá»i nhÆ°ng chÆ°a cÃ³ instance");
+    throw new Error("FhEVM chÆ°a ÄÆ°á»£c khá»i táº¡o. Gá»i initializeFhEVM() trÆ°á»c.");
   }
   return fhevmInstance;
 }
 
 /**
- * Kiá»m tra xem fhEVM ÄÃ£ ÄÆ°á»£c khá»i táº¡o chÆ°a
- * @returns {boolean} true náº¿u ÄÃ£ khá»i táº¡o
+ * Khá»i táº¡o fhEVM vá»i Singleton pattern
+ * Äáº£m báº£o chá» cÃ³ má»t instance ÄÆ°á»£c táº¡o
+ * 
+ * @param {Object} config - Cáº¥u hÃ¬nh khá»i táº¡o
+ * @param {string} config.networkUrl - RPC URL (báº¯t buá»c)
+ * @param {string} config.relayerUrl - Relayer URL (optional, cÃ³ default)
+ * @param {string} config.contractAddress - Contract address (báº¯t buá»c)
+ * @returns {Promise<object>} fhEVM instance
  */
-function isInstanceInitialized() {
-  return fhevmInstance !== null;
+export async function initializeFhEVM(config = {}) {
+  // Náº¿u ÄÃ£ cÃ³ instance, return luÃ´n
+  if (fhevmInstance) {
+    console.log("[FhEVM] Sá»­ dá»¥ng instance hiá»n cÃ³");
+    return fhevmInstance;
+  }
+  
+  // Náº¿u Äang khá»i táº¡o, Äá»£i promise hoÃ n thÃ nh
+  if (isInitializing && initializationPromise) {
+    console.log("[FhEVM] Äang Äá»£i khá»i táº¡o hoÃ n thÃ nh...");
+    return initializationPromise;
+  }
+  
+  // Báº¯t Äáº§u khá»i táº¡o
+  isInitializing = true;
+  
+  initializationPromise = (async () => {
+    try {
+      console.log("[FhEVM] Báº¯t Äáº§u khá»i táº¡o...");
+      
+      // Validate required config
+      const networkUrl = config.networkUrl || process.env.RPC_URL;
+      if (!networkUrl) {
+        throw new Error("networkUrl (RPC_URL) lÃ  báº¯t buá»c Äá» khá»i táº¡o fhEVM");
+      }
+      
+      const contractAddress = config.contractAddress || process.env.CONTRACT_ADDRESS;
+      if (!contractAddress) {
+        throw new Error("contractAddress lÃ  báº¯t buá»c Äá» khá»i táº¡o fhEVM");
+      }
+      
+      const relayerUrl = getRelayerUrl(config);
+      
+      console.log(`[FhEVM] Network URL: ${networkUrl.substring(0, 30)}...`);
+      console.log(`[FhEVM] Relayer URL: ${relayerUrl}`);
+      console.log(`[FhEVM] Contract: ${contractAddress}`);
+      
+      // Táº¡o instance fhEVM
+      fhevmInstance = await createInstance({
+        networkUrl: networkUrl,
+        relayerUrl: relayerUrl,
+      });
+      
+      console.log("[FhEVM] â Khá»i táº¡o thÃ nh cÃ´ng!");
+      
+      return fhevmInstance;
+      
+    } catch (error) {
+      // Reset tráº¡ng thÃ¡i náº¿u lá»i
+      fhevmInstance = null;
+      isInitializing = false;
+      initializationPromise = null;
+      
+      console.error("[FhEVM] â Lá»i khá»i táº¡o:", error.message);
+      throw error;
+    }
+  })();
+  
+  return initializationPromise;
 }
 
 /**
- * MÃ£ hÃ³a sá» tiá»n bid
+ * MÃ£ hÃ³a bid amount vá»i FHE
+ * 
  * @param {number} amount - Sá» tiá»n cáº§n mÃ£ hÃ³a
- * @returns {Promise<Object>} Dá»¯ liá»u ÄÃ£ mÃ£ hÃ³a
- * @throws {Error} Náº¿u chÆ°a khá»i táº¡o hoáº·c mÃ£ hÃ³a tháº¥t báº¡i
+ * @param {string} contractAddress - Äá»a chá» contract
+ * @param {string} userAddress - Äá»a chá» user
+ * @returns {Promise<{encryptedValue: string, inputProof: string}>}
  */
-async function encryptBidAmount(amount) {
-  console.log(`[FhEVM] Báº¯t Äáº§u mÃ£ hÃ³a sá» tiá»n: ${amount}`);
-
+export async function encryptBidAmount(amount, contractAddress, userAddress) {
+  // Äáº£m báº£o ÄÃ£ khá»i táº¡o
   if (!fhevmInstance) {
-    const error = "[FhEVM] ChÆ°a khá»i táº¡o fhEVM. Gá»i initializeFhEVM() trÆ°á»c!";
-    console.error(error);
-    throw new Error(error);
+    throw new Error("FhEVM chÆ°a ÄÆ°á»£c khá»i táº¡o. Gá»i initializeFhEVM() trÆ°á»c.");
   }
-
+  
   try {
-    console.log("[FhEVM] Gá»i instance.encrypt64...");
-    const encrypted = await fhevmInstance.encrypt64(BigInt(amount));
-    console.log("[FhEVM] â MÃ£ hÃ³a thÃ nh cÃ´ng!");
-    return encrypted;
+    console.log(`[FhEVM] MÃ£ hÃ³a bid amount: ${amount}`);
+    
+    // Táº¡o input cho encryption
+    const input = fhevmInstance.createEncryptedInput(contractAddress, userAddress);
+    
+    // ThÃªm sá» nguyÃªn 64-bit (euint64)
+    input.add64(BigInt(amount));
+    
+    // Encrypt
+    const encrypted = await input.encrypt();
+    
+    console.log("[FhEVM] â MÃ£ hÃ³a thÃ nh cÃ´ng");
+    
+    return {
+      encryptedValue: encrypted.handles[0],
+      inputProof: encrypted.inputProof
+    };
+    
   } catch (error) {
-    console.error("[FhEVM] â Lá»i khi mÃ£ hÃ³a:");
-    console.error(`[FhEVM] Error: ${error.message}`);
-    console.error(`[FhEVM] Stack: ${error.stack}`);
-    throw new Error(`KhÃ´ng thá» mÃ£ hÃ³a sá» tiá»n: ${error.message}`);
+    console.error("[FhEVM] â Lá»i mÃ£ hÃ³a:", error.message);
+    throw error;
   }
 }
 
 /**
- * Reset instance (chá»§ yáº¿u dÃ¹ng cho testing)
- * Cáº¢NH BÃO: KhÃ´ng nÃªn sá»­ dá»¥ng trong production
+ * Reset instance (dÃ¹ng cho testing hoáº·c cleanup)
  */
-function resetInstance() {
-  console.warn("[FhEVM] Cáº¢NH BÃO: Äang reset instance! Chá» dÃ¹ng cho testing.");
+export function resetFhEVM() {
   fhevmInstance = null;
   isInitializing = false;
   initializationPromise = null;
+  console.log("[FhEVM] Instance ÄÃ£ ÄÆ°á»£c reset");
 }
-
-// Export cÃ¡c function cáº§n thiáº¿t
-export {
-  initializeFhEVM,
-  getFhEVMInstance,
-  isInstanceInitialized as isInitialized,
-  encryptBidAmount,
-  resetInstance,
-  DEFAULT_RELAYER_URL,
-};
