@@ -15,6 +15,14 @@ const BID_LIMITS = {
 };
 
 /**
+ * Default values cho cÃ¡c biáº¿n optional
+ */
+const ENV_DEFAULTS = {
+  CONTRACT_ADDRESS: "0xe9c1349c959f98f3d6e1c25b1bc3a4376921423d",
+  RELAYER_URL: "https://relayer.testnet.zama.org",
+};
+
+/**
  * Káº¿t quáº£ validation
  * @typedef {Object} ValidationResult
  * @property {boolean} isValid - CÃ³ há»£p lá» hay khÃ´ng
@@ -29,158 +37,208 @@ const BID_LIMITS = {
  * @returns {ValidationResult} Káº¿t quáº£ validation
  */
 function validateBidAmount(amount) {
-  // Kiá»m tra null/undefined
-  if (amount === null || amount === undefined) {
+  // Check null/undefined
+  if (amount === null || amount === undefined || amount === "") {
     return {
       isValid: false,
-      error: "Sá» tiá»n bid khÃ´ng ÄÆ°á»£c Äá» trá»ng",
-      value: null,
+      error: "Bid amount is required",
+      value: null
     };
   }
-
-  // Chuyá»n Äá»i sang sá» náº¿u lÃ  string
-  const numericAmount = typeof amount === "string" ? parseFloat(amount) : amount;
-
-  // Kiá»m tra cÃ³ pháº£i lÃ  sá» há»£p lá»
-  if (typeof numericAmount !== "number") {
+  
+  // Convert to number
+  const numAmount = Number(amount);
+  
+  // Check NaN
+  if (isNaN(numAmount)) {
     return {
       isValid: false,
-      error: "Sá» tiá»n bid pháº£i lÃ  má»t con sá»",
-      value: null,
+      error: "Bid amount must be a valid number",
+      value: null
     };
   }
-
-  // Kiá»m tra NaN
-  if (Number.isNaN(numericAmount)) {
+  
+  // Check positive
+  if (numAmount <= 0) {
     return {
       isValid: false,
-      error: "Sá» tiá»n bid khÃ´ng há»£p lá» (NaN)",
-      value: null,
+      error: "Bid amount must be positive",
+      value: null
     };
   }
-
-  // Kiá»m tra Infinity
-  if (!Number.isFinite(numericAmount)) {
+  
+  // Check minimum
+  if (numAmount < BID_LIMITS.MIN_AMOUNT) {
     return {
       isValid: false,
-      error: "Sá» tiá»n bid khÃ´ng há»£p lá» (Infinity)",
-      value: null,
+      error: `Bid amount must be at least ${BID_LIMITS.MIN_AMOUNT}`,
+      value: null
     };
   }
-
-  // Kiá»m tra sá» dÆ°Æ¡ng
-  if (numericAmount <= 0) {
+  
+  // Check maximum
+  if (numAmount > BID_LIMITS.MAX_AMOUNT) {
     return {
       isValid: false,
-      error: `Sá» tiá»n bid pháº£i lÃ  sá» dÆ°Æ¡ng (nháº­n ÄÆ°á»£c: ${numericAmount})`,
-      value: null,
+      error: `Bid amount cannot exceed ${BID_LIMITS.MAX_AMOUNT}`,
+      value: null
     };
   }
-
-  // Kiá»m tra giá»i háº¡n tá»i thiá»u
-  if (numericAmount < BID_LIMITS.MIN_AMOUNT) {
-    return {
-      isValid: false,
-      error: `Sá» tiá»n bid tá»i thiá»u lÃ  ${BID_LIMITS.MIN_AMOUNT} (nháº­n ÄÆ°á»£c: ${numericAmount})`,
-      value: null,
-    };
+  
+  // Check decimals (prevent floating point issues)
+  const strAmount = String(amount);
+  if (strAmount.includes('.')) {
+    const decimals = strAmount.split('.')[1].length;
+    if (decimals > BID_LIMITS.MAX_DECIMALS) {
+      return {
+        isValid: false,
+        error: `Bid amount cannot have more than ${BID_LIMITS.MAX_DECIMALS} decimal places`,
+        value: null
+      };
+    }
   }
-
-  // Kiá»m tra giá»i háº¡n tá»i Äa
-  if (numericAmount > BID_LIMITS.MAX_AMOUNT) {
-    return {
-      isValid: false,
-      error: `Sá» tiá»n bid tá»i Äa lÃ  ${BID_LIMITS.MAX_AMOUNT} (nháº­n ÄÆ°á»£c: ${numericAmount})`,
-      value: null,
-    };
-  }
-
-  // Kiá»m tra sá» nguyÃªn (cho cÃ¡c smart contract yÃªu cáº§u uint)
-  if (!Number.isInteger(numericAmount)) {
-    // LÃ m trÃ²n xuá»ng vÃ  cáº£nh bÃ¡o
-    const roundedAmount = Math.floor(numericAmount);
-    console.warn(`[Validator] Sá» tiá»n ÄÃ£ ÄÆ°á»£c lÃ m trÃ²n tá»« ${numericAmount} xuá»ng ${roundedAmount}`);
-    return {
-      isValid: true,
-      error: null,
-      value: roundedAmount,
-    };
-  }
-
-  // Táº¥t cáº£ Äiá»u kiá»n Äá»u thá»a mÃ£n
+  
   return {
     isValid: true,
     error: null,
-    value: numericAmount,
-  };
-}
-
-/**
- * Validate Äá»a chá» Ethereum
- * Kiá»m tra format cÆ¡ báº£n cá»§a Äá»a chá» ETH
- * @param {string} address - Äá»a chá» cáº§n validate
- * @returns {ValidationResult} Káº¿t quáº£ validation
- */
-function validateEthereumAddress(address) {
-  if (!address || typeof address !== "string") {
-    return {
-      isValid: false,
-      error: "Äá»a chá» vÃ­ khÃ´ng há»£p lá»",
-      value: null,
-    };
-  }
-
-  // Kiá»m tra format Äá»a chá» ETH (0x + 40 hex chars)
-  const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
-  if (!ethAddressRegex.test(address)) {
-    return {
-      isValid: false,
-      error: "Äá»a chá» vÃ­ pháº£i cÃ³ format 0x... (42 kÃ½ tá»±)",
-      value: null,
-    };
-  }
-
-  return {
-    isValid: true,
-    error: null,
-    value: address.toLowerCase(), // Chuáº©n hÃ³a vá» lowercase
+    value: numAmount
   };
 }
 
 /**
  * Validate environment variables
- * Kiá»m tra cÃ¡c biáº¿n mÃ´i trÆ°á»ng báº¯t buá»c
- * @param {Object} env - Object chá»©a environment variables
- * @param {string[]} requiredVars - Danh sÃ¡ch tÃªn biáº¿n báº¯t buá»c
+ * 
+ * REQUIRED (3 biáº¿n báº¯t buá»c):
+ * - TELEGRAM_BOT_TOKEN: Token tá»« BotFather
+ * - PRIVATE_KEY: Private key cho transactions
+ * - RPC_URL: URL cá»§a RPC node
+ * 
+ * OPTIONAL (cÃ³ default):
+ * - CONTRACT_ADDRESS: Default = 0xe9c1349c959f98f3d6e1c25b1bc3a4376921423d
+ * - RELAYER_URL: Default = https://relayer.testnet.zama.org
+ * 
+ * Note: ALCHEMY_API_KEY khÃ´ng cÃ²n cáº§n thiáº¿t náº¿u ÄÃ£ cÃ³ RPC_URL
+ * 
  * @returns {ValidationResult} Káº¿t quáº£ validation
  */
-function validateEnvVariables(env, requiredVars) {
-  const missingVars = [];
-
-  for (const varName of requiredVars) {
-    if (!env[varName] || env[varName].trim() === "") {
-      missingVars.push(varName);
+function validateEnvVariables() {
+  const missing = [];
+  const warnings = [];
+  
+  // === REQUIRED VARIABLES (3 biáº¿n báº¯t buá»c) ===
+  const requiredVars = [
+    { name: "TELEGRAM_BOT_TOKEN", description: "Telegram Bot Token (from @BotFather)" },
+    { name: "PRIVATE_KEY", description: "Wallet private key for transactions" },
+    { name: "RPC_URL", description: "RPC endpoint URL" },
+  ];
+  
+  for (const varInfo of requiredVars) {
+    const value = process.env[varInfo.name];
+    if (!value || value.trim() === "") {
+      missing.push(`  â¢ ${varInfo.name}: ${varInfo.description}`);
     }
   }
-
-  if (missingVars.length > 0) {
+  
+  // === OPTIONAL VARIABLES (cÃ³ default, chá» log warning náº¿u khÃ´ng set) ===
+  if (!process.env.CONTRACT_ADDRESS) {
+    warnings.push(`  â¢ CONTRACT_ADDRESS not set, using default: ${ENV_DEFAULTS.CONTRACT_ADDRESS}`);
+  }
+  
+  if (!process.env.RELAYER_URL) {
+    warnings.push(`  â¢ RELAYER_URL not set, using default: ${ENV_DEFAULTS.RELAYER_URL}`);
+  }
+  
+  // Log warnings (khÃ´ng pháº£i error)
+  if (warnings.length > 0) {
+    console.log("[ENV] Optional variables using defaults:");
+    warnings.forEach(w => console.log(w));
+  }
+  
+  // Return validation result
+  if (missing.length > 0) {
     return {
       isValid: false,
-      error: `Thiáº¿u cÃ¡c biáº¿n mÃ´i trÆ°á»ng: ${missingVars.join(", ")}`,
-      value: null,
+      error: `Missing required environment variables:\n${missing.join("\n")}\n\nPlease set these in Replit Secrets or .env file.`,
+      value: null
     };
   }
-
+  
+  // Additional validations for format
+  const privateKey = process.env.PRIVATE_KEY;
+  if (privateKey && !privateKey.match(/^(0x)?[a-fA-F0-9]{64}$/)) {
+    return {
+      isValid: false,
+      error: "PRIVATE_KEY format invalid. Must be 64 hex characters (with or without 0x prefix).",
+      value: null
+    };
+  }
+  
+  const rpcUrl = process.env.RPC_URL;
+  if (rpcUrl && !rpcUrl.startsWith("http://") && !rpcUrl.startsWith("https://")) {
+    return {
+      isValid: false,
+      error: "RPC_URL must start with http:// or https://",
+      value: null
+    };
+  }
+  
+  // Validate CONTRACT_ADDRESS format if provided
+  const contractAddress = process.env.CONTRACT_ADDRESS;
+  if (contractAddress && !contractAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+    return {
+      isValid: false,
+      error: "CONTRACT_ADDRESS format invalid. Must be 42 characters starting with 0x.",
+      value: null
+    };
+  }
+  
   return {
     isValid: true,
     error: null,
-    value: env,
+    value: {
+      TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+      PRIVATE_KEY: process.env.PRIVATE_KEY,
+      RPC_URL: process.env.RPC_URL,
+      CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS || ENV_DEFAULTS.CONTRACT_ADDRESS,
+      RELAYER_URL: process.env.RELAYER_URL || ENV_DEFAULTS.RELAYER_URL,
+    }
   };
 }
 
+/**
+ * Validate Ethereum address format
+ * @param {string} address - Address cáº§n validate
+ * @returns {ValidationResult} Káº¿t quáº£ validation
+ */
+function validateAddress(address) {
+  if (!address || typeof address !== "string") {
+    return {
+      isValid: false,
+      error: "Address is required",
+      value: null
+    };
+  }
+  
+  if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
+    return {
+      isValid: false,
+      error: "Invalid Ethereum address format",
+      value: null
+    };
+  }
+  
+  return {
+    isValid: true,
+    error: null,
+    value: address.toLowerCase()
+  };
+}
+
+// Export cÃ¡c hÃ m vÃ  constants
 export {
-  BID_LIMITS,
   validateBidAmount,
-  validateEthereumAddress,
   validateEnvVariables,
+  validateAddress,
+  BID_LIMITS,
+  ENV_DEFAULTS
 };
