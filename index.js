@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 // ABI embedded in code - no fs read needed
 import { DECADEX_ABI } from "./src/contract-abi.js";
 
-// Import cÃ¡c module ÄÃ£ tÃ¡ch
+// Import cÃÂ¡c module ÃÂÃÂ£ tÃÂ¡ch
 import { 
   initializeFhEVM, 
   getFhEVMInstance, 
@@ -61,7 +61,7 @@ const requiredVars = ["TELEGRAM_BOT_TOKEN", "PRIVATE_KEY", "RPC_URL"];
 console.log("[ENV] Checking required variables:");
 requiredVars.forEach(varName => {
   const value = process.env[varName];
-  const status = value ? `â SET (length: ${value.length})` : "â NOT SET";
+  const status = value ? `Ã¢ÂÂ SET (length: ${value.length})` : "Ã¢ÂÂ NOT SET";
   console.log(`[ENV]   ${varName}: ${status}`);
 });
 
@@ -70,7 +70,7 @@ const optionalVars = ["CONTRACT_ADDRESS", "RELAYER_URL"];
 console.log("[ENV] Checking optional variables (have defaults):");
 optionalVars.forEach(varName => {
   const value = process.env[varName];
-  const status = value ? `â SET (length: ${value.length})` : "â Using default";
+  const status = value ? `Ã¢ÂÂ SET (length: ${value.length})` : "Ã¢ÂÂ Using default";
   console.log(`[ENV]   ${varName}: ${status}`);
 });
 console.log("=== END ENVIRONMENT DEBUG ===\n");
@@ -78,15 +78,15 @@ console.log("=== END ENVIRONMENT DEBUG ===\n");
 // === VALIDATE ENVIRONMENT VARIABLES ===
 const envValidation = validateEnvVariables(process.env);
 if (!envValidation.valid) {
-  console.error("â Missing required environment variables:");
+  console.error("Ã¢ÂÂ Missing required environment variables:");
   envValidation.errors.forEach(err => console.error(`   - ${err}`));
-  console.error("\nð¡ HÆ°á»ng dáº«n:");
-  console.error("   1. VÃ o Replit Secrets (Tools â Secrets)");
-  console.error("   2. ThÃªm cÃ¡c biáº¿n mÃ´i trÆ°á»ng báº¯t buá»c:");
-  console.error("      - TELEGRAM_BOT_TOKEN: Token tá»« @BotFather");
-  console.error("      - PRIVATE_KEY: Private key cá»§a wallet (khÃ´ng cÃ³ 0x)");
+  console.error("\nÃ°ÂÂÂ¡ HÃÂ°Ã¡Â»Âng dÃ¡ÂºÂ«n:");
+  console.error("   1. VÃÂ o Replit Secrets (Tools Ã¢ÂÂ Secrets)");
+  console.error("   2. ThÃÂªm cÃÂ¡c biÃ¡ÂºÂ¿n mÃÂ´i trÃÂ°Ã¡Â»Âng bÃ¡ÂºÂ¯t buÃ¡Â»Âc:");
+  console.error("      - TELEGRAM_BOT_TOKEN: Token tÃ¡Â»Â« @BotFather");
+  console.error("      - PRIVATE_KEY: Private key cÃ¡Â»Â§a wallet (khÃÂ´ng cÃÂ³ 0x)");
   console.error("      - RPC_URL: Zama testnet RPC URL");
-  console.error("   3. CÃ¡c biáº¿n optional (cÃ³ default):");
+  console.error("   3. CÃÂ¡c biÃ¡ÂºÂ¿n optional (cÃÂ³ default):");
   console.error("      - CONTRACT_ADDRESS: DecaDex contract address");
   console.error("      - RELAYER_URL: Zama relayer URL");
   process.exit(1);
@@ -101,7 +101,7 @@ const CONFIG = {
   RELAYER_URL: process.env.RELAYER_URL || DEFAULT_RELAYER_URL,
 };
 
-console.log("â Configuration loaded successfully");
+console.log("Ã¢ÂÂ Configuration loaded successfully");
 console.log(`   Contract: ${CONFIG.CONTRACT_ADDRESS}`);
 console.log(`   RPC: ${CONFIG.RPC_URL}`);
 console.log(`   Relayer: ${CONFIG.RELAYER_URL}`);
@@ -185,7 +185,7 @@ async function initializeBot() {
   console.log("[BOT] Deleting existing webhook (if any)...");
   try {
     await bot.deleteWebHook({ drop_pending_updates: true });
-    console.log("[BOT] â Webhook deleted, pending updates dropped");
+    console.log("[BOT] Ã¢ÂÂ Webhook deleted, pending updates dropped");
   } catch (error) {
     console.warn("[BOT] Warning: Could not delete webhook:", error.message);
   }
@@ -202,14 +202,14 @@ async function startPollingWithRetry(bot) {
     try {
       console.log(`[BOT] Starting polling (attempt ${pollingRetryCount + 1}/${MAX_POLLING_RETRIES})...`);
       await bot.startPolling({ restart: false });
-      console.log("[BOT] â Polling started successfully");
+      console.log("[BOT] Ã¢ÂÂ Polling started successfully");
       pollingRetryCount = 0; // Reset on success
       return true;
     } catch (error) {
       pollingRetryCount++;
       
       if (error.message && error.message.includes('409')) {
-        console.error("[BOT] â 409 Conflict detected - another instance may be running");
+        console.error("[BOT] Ã¢ÂÂ 409 Conflict detected - another instance may be running");
         console.log("[BOT] Attempting to clean up and retry...");
         
         try {
@@ -230,7 +230,7 @@ async function startPollingWithRetry(bot) {
   }
   
   if (pollingRetryCount >= MAX_POLLING_RETRIES) {
-    console.error("[BOT] â Max polling retries exceeded. Please check:");
+    console.error("[BOT] Ã¢ÂÂ Max polling retries exceeded. Please check:");
     console.error("   1. No other bot instances are running");
     console.error("   2. Bot token is correct");
     console.error("   3. Network connection is stable");
@@ -262,7 +262,7 @@ function setupPollingErrorHandler(bot) {
   });
 }
 
-// === KHá»I Táº O PROVIDER VÃ WALLET ===
+// === KHÃ¡Â»ÂI TÃ¡ÂºÂ O PROVIDER VÃÂ WALLET ===
 const provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
 const wallet = new ethers.Wallet(CONFIG.PRIVATE_KEY, provider);
 const contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, DECADEX_ABI, wallet);
@@ -277,7 +277,7 @@ function setupCommandHandlers(bot) {
     console.log(`[CMD] /start from @${username} (chat: ${chatId})`);
     
     const welcomeMessage = `
-ð® *Welcome to DecaDex Bot, ${username}!*
+Ã°ÂÂÂ® *Welcome to DecaDex Bot, ${username}!*
 
 This bot allows you to interact with the DecaDex private auction contract on Zama's fhEVM testnet.
 
@@ -303,14 +303,14 @@ Type /help for more details!
     console.log(`[CMD] /help from chat: ${chatId}`);
     
     const helpMessage = `
-ð *DecaDex Bot Help*
+Ã°ÂÂÂ *DecaDex Bot Help*
 
 *Commands:*
-â¢ /start - Welcome message
-â¢ /help - This help text
-â¢ /info - View current auction info
-â¢ /bid <amount> - Place encrypted bid
-â¢ /status - Bot and contract status
+Ã¢ÂÂ¢ /start - Welcome message
+Ã¢ÂÂ¢ /help - This help text
+Ã¢ÂÂ¢ /info - View current auction info
+Ã¢ÂÂ¢ /bid <amount> - Place encrypted bid
+Ã¢ÂÂ¢ /status - Bot and contract status
 
 *How Bidding Works:*
 1. Your bid amount is encrypted using FHE
@@ -319,8 +319,8 @@ Type /help for more details!
 4. Winner is determined by comparing encrypted values
 
 *Bid Limits:*
-â¢ Minimum: ${BID_LIMITS.MIN} wei
-â¢ Maximum: ${BID_LIMITS.MAX} wei
+Ã¢ÂÂ¢ Minimum: ${BID_LIMITS.MIN} wei
+Ã¢ÂÂ¢ Maximum: ${BID_LIMITS.MAX} wei
 
 *Network:* Zama fhEVM Testnet
 *Contract:* ${CONFIG.CONTRACT_ADDRESS}
@@ -335,13 +335,13 @@ Type /help for more details!
     console.log(`[CMD] /status from chat: ${chatId}`);
     
     try {
-      const fhevmStatus = isInitialized() ? "â Initialized" : "â³ Not initialized";
+      const fhevmStatus = isInitialized() ? "Ã¢ÂÂ Initialized" : "Ã¢ÂÂ³ Not initialized";
       const networkInfo = await provider.getNetwork();
       
       const statusMessage = `
-ð *Bot Status*
+Ã°ÂÂÂ *Bot Status*
 
-*Bot:* â Running
+*Bot:* Ã¢ÂÂ Running
 *fhEVM:* ${fhevmStatus}
 *Network:* ${networkInfo.name} (Chain ID: ${networkInfo.chainId})
 *Contract:* \`${CONFIG.CONTRACT_ADDRESS}\`
@@ -351,7 +351,7 @@ Type /help for more details!
       await bot.sendMessage(chatId, statusMessage, { parse_mode: "Markdown" });
     } catch (error) {
       console.error("[CMD] /status error:", error);
-      await bot.sendMessage(chatId, "â Error fetching status: " + error.message);
+      await bot.sendMessage(chatId, "Ã¢ÂÂ Error fetching status: " + error.message);
     }
   });
 
@@ -369,9 +369,9 @@ Type /help for more details!
       const endDate = new Date(Number(auctionEndTime) * 1000);
       
       const infoMessage = `
-ð·ï¸ *Auction Information*
+Ã°ÂÂÂ·Ã¯Â¸Â *Auction Information*
 
-*Status:* ${ended ? "ð´ Ended" : "ð¢ Active"}
+*Status:* ${ended ? "Ã°ÂÂÂ´ Ended" : "Ã°ÂÂÂ¢ Active"}
 *End Time:* ${endDate.toISOString()}
 *Highest Bidder:* \`${highestBidder}\`
 *Contract:* \`${CONFIG.CONTRACT_ADDRESS}\`
@@ -382,7 +382,7 @@ _Note: Bid amounts are encrypted and hidden until auction ends._
       await bot.sendMessage(chatId, infoMessage, { parse_mode: "Markdown" });
     } catch (error) {
       console.error("[CMD] /info error:", error);
-      await bot.sendMessage(chatId, `â Error fetching auction info: ${error.message}`);
+      await bot.sendMessage(chatId, `Ã¢ÂÂ Error fetching auction info: ${error.message}`);
     }
   });
 
@@ -394,14 +394,14 @@ _Note: Bid amounts are encrypted and hidden until auction ends._
     console.log(`[CMD] /bid from chat: ${chatId}, amount: ${amountStr}`);
     
     if (!amountStr) {
-      await bot.sendMessage(chatId, "â Please specify a bid amount.\n\nUsage: /bid <amount>\nExample: /bid 100");
+      await bot.sendMessage(chatId, "Ã¢ÂÂ Please specify a bid amount.\n\nUsage: /bid <amount>\nExample: /bid 100");
       return;
     }
     
     // Validate bid amount
     const validation = validateBidAmount(amountStr);
     if (!validation.valid) {
-      await bot.sendMessage(chatId, `â Invalid bid: ${validation.error}`);
+      await bot.sendMessage(chatId, `Ã¢ÂÂ Invalid bid: ${validation.error}`);
       return;
     }
     
@@ -410,11 +410,11 @@ _Note: Bid amounts are encrypted and hidden until auction ends._
     try {
       // Initialize fhEVM if not already done
       if (!isInitialized()) {
-        await bot.sendMessage(chatId, "â³ Initializing fhEVM... Please wait.");
+        await bot.sendMessage(chatId, "Ã¢ÂÂ³ Initializing fhEVM... Please wait.");
         await initializeFhEVM(provider, CONFIG.CONTRACT_ADDRESS, CONFIG.RELAYER_URL);
       }
       
-      await bot.sendMessage(chatId, "ð Encrypting your bid...");
+      await bot.sendMessage(chatId, "Ã°ÂÂÂ Encrypting your bid...");
       
       // Encrypt the bid amount
       const encryptedAmount = await encryptBidAmount(
@@ -423,23 +423,23 @@ _Note: Bid amounts are encrypted and hidden until auction ends._
         wallet.address
       );
       
-      await bot.sendMessage(chatId, "ð¤ Submitting encrypted bid to blockchain...");
+      await bot.sendMessage(chatId, "Ã°ÂÂÂ¤ Submitting encrypted bid to blockchain...");
       
       // Submit the bid
       const tx = await contract.bid(encryptedAmount, { gasLimit: 500000 });
-      await bot.sendMessage(chatId, `â³ Transaction submitted: \`${tx.hash}\`\n\nWaiting for confirmation...`);
+      await bot.sendMessage(chatId, `Ã¢ÂÂ³ Transaction submitted: \`${tx.hash}\`\n\nWaiting for confirmation...`);
       
       const receipt = await tx.wait();
       
       if (receipt.status === 1) {
-        await bot.sendMessage(chatId, `â Bid placed successfully!\n\nTx Hash: \`${receipt.hash}\`\nBlock: ${receipt.blockNumber}\nGas Used: ${receipt.gasUsed.toString()}`, { parse_mode: "Markdown" });
+        await bot.sendMessage(chatId, `Ã¢ÂÂ Bid placed successfully!\n\nTx Hash: \`${receipt.hash}\`\nBlock: ${receipt.blockNumber}\nGas Used: ${receipt.gasUsed.toString()}`, { parse_mode: "Markdown" });
       } else {
-        await bot.sendMessage(chatId, "â Transaction failed. Please try again.");
+        await bot.sendMessage(chatId, "Ã¢ÂÂ Transaction failed. Please try again.");
       }
       
     } catch (error) {
       console.error("[CMD] /bid error:", error);
-      await bot.sendMessage(chatId, `â Error placing bid: ${error.message}`);
+      await bot.sendMessage(chatId, `Ã¢ÂÂ Error placing bid: ${error.message}`);
     }
   });
 }
@@ -471,11 +471,11 @@ async function main() {
     // Initialize fhEVM in background
     console.log("[fhEVM] Initializing fhEVM in background...");
     initializeFhEVM(provider, CONFIG.CONTRACT_ADDRESS, CONFIG.RELAYER_URL)
-      .then(() => console.log("[fhEVM] â fhEVM initialized successfully"))
-      .catch(err => console.warn("[fhEVM] â  Background initialization failed:", err.message));
+      .then(() => console.log("[fhEVM] Ã¢ÂÂ fhEVM initialized successfully"))
+      .catch(err => console.warn("[fhEVM] Ã¢ÂÂ  Background initialization failed:", err.message));
     
     console.log("\n========================================");
-    console.log("   â Bot is now running!");
+    console.log("   Ã¢ÂÂ Bot is now running!");
     console.log(`   Wallet: ${wallet.address}`);
     console.log(`   Contract: ${CONFIG.CONTRACT_ADDRESS}`);
     console.log("========================================\n");
