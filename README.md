@@ -140,6 +140,17 @@ User (Telegram)
    - Check RPC_URL is working
 
 
+
+### "contract.placeBid is not a function"
+
+**Cause:** ABI function name mismatch - contract has `bid()` not `placeBid()`
+
+**Solution:** Fixed in commit c2f6fb3
+- Changed `contract.placeBid(encryptedBid)` to `contract.bid(encryptedBid.handles[0], encryptedBid.inputProof)`
+- Zama SDK `encrypt()` returns `{ handles: bytes32[], inputProof: bytes }`
+- First handle (`handles[0]`) contains the encrypted value
+
+
 ## Bug Fixes History
 
 ### Fix 6: Contract Address Required Error (2026-02-01)
