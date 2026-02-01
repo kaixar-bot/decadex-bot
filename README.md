@@ -151,6 +151,23 @@ User (Telegram)
 - First handle (`handles[0]`) contains the encrypted value
 
 
+### "execution reverted, require(false)" khi bid
+
+**NguyÃªn nhÃ¢n:**
+Contract cÃ³ cÃ¡c require conditions cáº§n ÄÆ°á»£c thá»a mÃ£n:
+1. Auction chÆ°a káº¿t thÃºc (ended == false)
+2. Thá»i gian auction chÆ°a háº¿t (currentTime < auctionEndTime)
+
+**Giáº£i phÃ¡p:**
+1. Sá»­ dá»¥ng /status Äá» kiá»m tra tráº¡ng thÃ¡i auction trÆ°á»c khi bid
+2. Bot sáº½ tá»± Äá»ng kiá»m tra vÃ  thÃ´ng bÃ¡o náº¿u auction ÄÃ£ ÄÃ³ng
+
+**Code ÄÃ£ fix (v2.0):**
+- Pre-flight checks: Tá»± Äá»ng kiá»m tra ended() vÃ  auctionEndTime() trÆ°á»c khi bid
+- Better error handling: Parse revert reasons vÃ  hiá»n thá» lÃ½ do cá»¥ thá»
+- New /status command: Kiá»m tra tráº¡ng thÃ¡i auction báº¥t ká»³ lÃºc nÃ o
+
+
 ## Bug Fixes History
 
 ### Fix 6: Contract Address Required Error (2026-02-01)
