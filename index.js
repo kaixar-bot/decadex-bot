@@ -336,8 +336,13 @@ RPC: ${CONFIG.RPC_URL}
     try {
       await bot.sendMessage(chatId, `Processing bid...\nAmount: ${amount}\nEncrypting...`);
 
-      // Encrypt the bid
-      const encryptedBid = await encryptBidAmount(amount);
+      // DEBUG: Log CONTRACT_ADDRESS before encrypt
+      console.log("[BID] CONTRACT_ADDRESS:", CONFIG.CONTRACT_ADDRESS);
+      console.log("[BID] Wallet address:", wallet.address);
+      console.log("[BID] Amount:", amount);
+
+      // Encrypt the bid - pass CONTRACT_ADDRESS and user address
+      const encryptedBid = await encryptBidAmount(amount, CONFIG.CONTRACT_ADDRESS, wallet.address);
       
       // Send transaction
       const tx = await contract.placeBid(encryptedBid);
