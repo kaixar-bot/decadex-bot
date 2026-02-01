@@ -17,6 +17,8 @@ import {
 } from "./src/validators.js";
 
 console.log("=== DECADEX BOT STARTING ===");
+console.log(`[Bot] Thá»i gian khá»i Äá»ng: ${new Date().toISOString()}`);
+console.log(`[Bot] Node version: ${process.version}`);
 
 // ============================================
 // PHáº¦N 1: Cáº¤U HÃNH VÃ KHá»I Táº O
@@ -41,12 +43,14 @@ const RPC_ENV_VARS = ["ALCHEMY_API_KEY", "RPC_URL"];
 /**
  * Validate vÃ  load environment variables
  */
+console.log("[Bot] Kiá»m tra environment variables...");
 const envValidation = validateEnvVariables(process.env, REQUIRED_ENV_VARS);
 if (!envValidation.isValid) {
   console.error("[ERROR] " + envValidation.error);
   console.error("[INFO] Vui lÃ²ng kiá»m tra file .env hoáº·c Replit Secrets");
   process.exit(1);
 }
+console.log("[Bot] â Environment variables há»£p lá»");
 
 // Kiá»m tra pháº£i cÃ³ Ã­t nháº¥t ALCHEMY_API_KEY hoáº·c RPC_URL
 const hasAlchemyKey = process.env.ALCHEMY_API_KEY && process.env.ALCHEMY_API_KEY.trim() !== "";
@@ -54,374 +58,444 @@ const hasRpcUrl = process.env.RPC_URL && process.env.RPC_URL.trim() !== "";
 
 if (!hasAlchemyKey && !hasRpcUrl) {
   console.error("[ERROR] Thiáº¿u cáº¥u hÃ¬nh RPC. Cáº§n Ã­t nháº¥t má»t trong hai:");
-  console.error("  - ALCHEMY_API_KEY: API key tá»« Alchemy");
-  console.error("  - RPC_URL: URL RPC endpoint Äáº§y Äá»§");
-  console.error("[INFO] Vui lÃ²ng thÃªm vÃ o file .env hoáº·c Replit Secrets");
+  console.error("  - ALCHEMY_API_KEY");
+  console.error("  - RPC_URL");
   process.exit(1);
 }
 
-// Láº¥y cÃ¡c biáº¿n mÃ´i trÆ°á»ng ÄÃ£ validate
-const token = process.env.TELEGRAM_BOT_TOKEN;
-const privateKey = process.env.PRIVATE_KEY;
-const contractAddress = process.env.CONTRACT_ADDRESS;
-
-// Cáº¥u hÃ¬nh RPC URL - Æ°u tiÃªn RPC_URL náº¿u cÃ³, fallback vá» ALCHEMY_API_KEY
-let rpcUrl;
+// XÃ¢y dá»±ng RPC URL
+let RPC_URL;
 if (hasRpcUrl) {
-  rpcUrl = process.env.RPC_URL;
-  console.log("[CONFIG] Sá»­ dá»¥ng RPC_URL tá»« environment");
+  RPC_URL = process.env.RPC_URL;
+  console.log("[Bot] Sá»­ dá»¥ng RPC_URL tá»« environment");
 } else {
-  const alchemyApiKey = process.env.ALCHEMY_API_KEY;
-  rpcUrl = `https://eth-sepolia.g.alchemy.com/v2/${alchemyApiKey}`;
-  console.log("[CONFIG] Sá»­ dá»¥ng ALCHEMY_API_KEY vá»i network eth-sepolia");
+  RPC_URL = `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`;
+  console.log("[Bot] Sá»­ dá»¥ng Alchemy API Key Äá» táº¡o RPC URL");
 }
 
-console.log("[CONFIG] CÃ¡c biáº¿n mÃ´i trÆ°á»ng ÄÃ£ ÄÆ°á»£c load thÃ nh cÃ´ng");
-import "dotenv/config";
-import TelegramBot from "node-telegram-bot-api";
-import { ethers } from "ethers";
-import { readFileSync } from "fs";
+// Log config (áº©n sensitive data)
+console.log("[Bot] Cáº¥u hÃ¬nh:");
+console.log(`  - TELEGRAM_BOT_TOKEN: ***${process.env.TELEGRAM_BOT_TOKEN.slice(-4)}`);
+console.log(`  - CONTRACT_ADDRESS: ${process.env.CONTRACT_ADDRESS}`);
+console.log(`  - RPC_URL: ${RPC_URL.substring(0, 40)}...`);
+console.log(`  - RELAYER_URL: ${process.env.RELAYER_URL || "(sáº½ dÃ¹ng default)"}`);
 
-// Import cÃÂ¡c module ÃÂÃÂ£ tÃÂ¡ch
-import { 
-  initializeFhEVM, 
-  getFhEVMInstance, 
-  isInitialized,
-  encryptBidAmount 
-} from "./src/fhevm-singleton.js";
-import { 
-  validateBidAmount, 
-  validateEnvVariables,
-  BID_LIMITS 
-} from "./src/validators.js";
-
-console.log("=== DECADEX BOT STARTING ===");
-
-// ============================================
-// PHÃ¡ÂºÂ¦N 1: CÃ¡ÂºÂ¤U HÃÂNH VÃÂ KHÃ¡Â»ÂI TÃ¡ÂºÂ O
-// ============================================
-
-/**
- * Danh sÃÂ¡ch cÃÂ¡c biÃ¡ÂºÂ¿n mÃÂ´i trÃÂ°Ã¡Â»Âng bÃ¡ÂºÂ¯t buÃ¡Â»Âc
- */
-const REQUIRED_ENV_VARS = [
-  "TELEGRAM_BOT_TOKEN",
-  "PRIVATE_KEY", 
-  "ALCHEMY_API_KEY",
-  "CONTRACT_ADDRESS",
-];
-
-/**
- * Validate vÃÂ  load environment variables
- */
-const envValidation = validateEnvVariables(process.env, REQUIRED_ENV_VARS);
-if (!envValidation.isValid) {
-  console.error("[ERROR] " + envValidation.error);
-  console.error("[INFO] Vui lÃÂ²ng kiÃ¡Â»Âm tra file .env cÃ¡Â»Â§a bÃ¡ÂºÂ¡n");
-  process.exit(1);
-}
-
-// LÃ¡ÂºÂ¥y cÃÂ¡c biÃ¡ÂºÂ¿n mÃÂ´i trÃÂ°Ã¡Â»Âng ÃÂÃÂ£ validate
-const token = process.env.TELEGRAM_BOT_TOKEN;
-const privateKey = process.env.PRIVATE_KEY;
-const alchemyApiKey = process.env.ALCHEMY_API_KEY;
-const contractAddress = process.env.CONTRACT_ADDRESS;
-
-// CÃ¡ÂºÂ¥u hÃÂ¬nh RPC URL
-const rpcUrl = `https://eth-sepolia.g.alchemy.com/v2/${alchemyApiKey}`;
-
-// ============================================
-// PHÃ¡ÂºÂ¦N 2: KHÃ¡Â»ÂI TÃ¡ÂºÂ O CÃÂC SERVICE
-// ============================================
-
-/**
- * Load vÃÂ  parse ABI tÃ¡Â»Â« file
- * @returns {Object} ABI object
- */
-function loadABI() {
-  try {
-    const abiContent = readFileSync("./abi.json", "utf-8");
-    return JSON.parse(abiContent);
-  } catch (error) {
-    console.error("[ERROR] KhÃÂ´ng thÃ¡Â»Â ÃÂÃ¡Â»Âc file abi.json:", error.message);
-    process.exit(1);
-  }
-}
-
-// KhÃ¡Â»Âi tÃ¡ÂºÂ¡o cÃÂ¡c components
-const abi = loadABI();
-const bot = new TelegramBot(token, { polling: true });
-const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-// Validate vÃÂ  chuÃ¡ÂºÂ©n hÃÂ³a ÃÂÃ¡Â»Âa chÃ¡Â»Â contract
-let validatedContractAddress;
+// Load ABI
+let contractABI;
 try {
-  validatedContractAddress = ethers.getAddress(contractAddress);
+  const abiContent = readFileSync("./abi.json", "utf-8");
+  contractABI = JSON.parse(abiContent);
+  console.log("[Bot] â ÄÃ£ load ABI thÃ nh cÃ´ng");
 } catch (error) {
-  console.error("[ERROR] ÃÂÃ¡Â»Âa chÃ¡Â»Â contract khÃÂ´ng hÃ¡Â»Â£p lÃ¡Â»Â:", contractAddress);
+  console.error("[ERROR] KhÃ´ng thá» load ABI:", error.message);
   process.exit(1);
 }
 
-// KhÃ¡Â»Âi tÃ¡ÂºÂ¡o contract vÃ¡Â»Âi signer
-const wallet = new ethers.Wallet(privateKey, provider);
-const contract = new ethers.Contract(validatedContractAddress, abi, wallet);
-
-// Session storage cho cÃÂ¡c user
-const userSessions = {};
-
-// ============================================
-// PHÃ¡ÂºÂ¦N 3: KHÃ¡Â»ÂI TÃ¡ÂºÂ O fhEVM SINGLETON
-// ============================================
-
-/**
- * KhÃ¡Â»Âi tÃ¡ÂºÂ¡o fhEVM instance mÃ¡Â»Ât lÃ¡ÂºÂ§n duy nhÃ¡ÂºÂ¥t khi bot start
- * SÃ¡Â»Â­ dÃ¡Â»Â¥ng singleton pattern ÃÂÃ¡Â»Â tÃÂ¡i sÃ¡Â»Â­ dÃ¡Â»Â¥ng
- */
-async function initializeFhEVMSingleton() {
-  try {
-    console.log("[FhEVM] ÃÂang khÃ¡Â»Âi tÃ¡ÂºÂ¡o singleton instance...");
-    await initializeFhEVM({
-      networkUrl: rpcUrl,
-      verifyingContract: validatedContractAddress,
-    });
-    console.log("[FhEVM] Singleton ÃÂÃÂ£ sÃ¡ÂºÂµn sÃÂ ng!");
-    return true;
-  } catch (error) {
-    console.error("[FhEVM] LÃ¡Â»Âi khÃ¡Â»Âi tÃ¡ÂºÂ¡o singleton:", error.message);
-    return false;
-  }
-}
+// Khá»i táº¡o provider vÃ  wallet
+console.log("[Bot] Khá»i táº¡o Ethereum provider...");
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, wallet);
+console.log(`[Bot] â Wallet address: ${wallet.address}`);
 
 // ============================================
-// PHÃ¡ÂºÂ¦N 4: XÃ¡Â»Â¬ LÃÂ BID
+// PHáº¦N 2: KHá»I Táº O TELEGRAM BOT
 // ============================================
 
-/**
- * XÃ¡Â»Â­ lÃÂ½ mÃ¡Â»Ât bid request tÃ¡Â»Â« user
- * @param {number} chatId - Telegram chat ID
- * @param {any} rawAmount - SÃ¡Â»Â tiÃ¡Â»Ân bid (chÃÂ°a validate)
- * @returns {Promise<Object>} KÃ¡ÂºÂ¿t quÃ¡ÂºÂ£ xÃ¡Â»Â­ lÃÂ½ bid
- */
-async function processBid(chatId, rawAmount) {
-  const startTime = Date.now();
-  
-  // BÃÂ°Ã¡Â»Âc 1: KiÃ¡Â»Âm tra user session
-  const userWallet = userSessions[chatId];
-  if (!userWallet) {
-    return {
-      success: false,
-      error: "Vui lÃÂ²ng kÃ¡ÂºÂ¿t nÃ¡Â»Âi vÃÂ­ trÃÂ°Ã¡Â»Âc bÃ¡ÂºÂ±ng /connect_wallet",
-    };
-  }
+console.log("[Bot] Khá»i táº¡o Telegram Bot...");
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
-  // BÃÂ°Ã¡Â»Âc 2: Validate bid amount
-  const validation = validateBidAmount(rawAmount);
-  if (!validation.isValid) {
-    return {
-      success: false,
-      error: validation.error,
-    };
-  }
-  const amount = validation.value;
-
-  // BÃÂ°Ã¡Â»Âc 3: KiÃ¡Â»Âm tra fhEVM instance
-  if (!isInitialized()) {
-    console.log("[Bid] fhEVM chÃÂ°a sÃ¡ÂºÂµn sÃÂ ng, ÃÂang khÃ¡Â»Âi tÃ¡ÂºÂ¡o...");
-    const initSuccess = await initializeFhEVMSingleton();
-    if (!initSuccess) {
-      return {
-        success: false,
-        error: "HÃ¡Â»Â thÃ¡Â»Âng mÃÂ£ hÃÂ³a chÃÂ°a sÃ¡ÂºÂµn sÃÂ ng, vui lÃÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i sau",
-      };
-    }
-  }
-
-  // BÃÂ°Ã¡Â»Âc 4: LÃ¡ÂºÂ¥y fhEVM instance (singleton)
-  const fhevmInstance = getFhEVMInstance();
-  if (!fhevmInstance) {
-    return {
-      success: false,
-      error: "KhÃÂ´ng thÃ¡Â»Â kÃ¡ÂºÂ¿t nÃ¡Â»Âi hÃ¡Â»Â thÃ¡Â»Âng mÃÂ£ hÃÂ³a",
-    };
-  }
-
-  try {
-    // BÃÂ°Ã¡Â»Âc 5: MÃÂ£ hÃÂ³a bid amount
-    console.log(`[Bid] ÃÂang xÃ¡Â»Â­ lÃÂ½ bid ${amount} cho chat ${chatId}`);
-    const encrypted = await encryptBidAmount(
-      fhevmInstance,
-      validatedContractAddress,
-      userWallet.address,
-      amount
-    );
-
-    // BÃÂ°Ã¡Â»Âc 6: GÃ¡Â»Â­i transaction lÃÂªn blockchain
-    console.log("[Bid] ÃÂang gÃ¡Â»Â­i transaction...");
-    const tx = await contract.bid(encrypted.handles[0], encrypted.inputProof);
-    
-    // BÃÂ°Ã¡Â»Âc 7: ChÃ¡Â»Â confirmation
-    console.log(`[Bid] ÃÂang chÃ¡Â»Â confirmation cho tx: ${tx.hash}`);
-    const receipt = await tx.wait();
-
-    const elapsed = Date.now() - startTime;
-    console.log(`[Bid] ThÃÂ nh cÃÂ´ng trong ${elapsed}ms - Block: ${receipt.blockNumber}`);
-
-    return {
-      success: true,
-      txHash: tx.hash,
-      blockNumber: receipt.blockNumber,
-      amount: amount,
-      elapsed: elapsed,
-    };
-  } catch (error) {
-    const elapsed = Date.now() - startTime;
-    console.error(`[Bid] LÃ¡Â»Âi sau ${elapsed}ms:`, error.message);
-    
-    // PhÃÂ¢n loÃ¡ÂºÂ¡i lÃ¡Â»Âi ÃÂÃ¡Â»Â trÃ¡ÂºÂ£ vÃ¡Â»Â message phÃÂ¹ hÃ¡Â»Â£p
-    let userMessage = "ÃÂÃÂ£ xÃ¡ÂºÂ£y ra lÃ¡Â»Âi khi xÃ¡Â»Â­ lÃÂ½ bid";
-    
-    if (error.message.includes("insufficient funds")) {
-      userMessage = "KhÃÂ´ng ÃÂÃ¡Â»Â§ ETH ÃÂÃ¡Â»Â thÃ¡Â»Â±c hiÃ¡Â»Ân giao dÃ¡Â»Âch";
-    } else if (error.message.includes("nonce")) {
-      userMessage = "LÃ¡Â»Âi giao dÃ¡Â»Âch, vui lÃÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i";
-    } else if (error.message.includes("network")) {
-      userMessage = "LÃ¡Â»Âi kÃ¡ÂºÂ¿t nÃ¡Â»Âi mÃ¡ÂºÂ¡ng, vui lÃÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i sau";
-    }
-
-    return {
-      success: false,
-      error: userMessage,
-      technicalError: error.message,
-    };
-  }
-}
-
-// ============================================
-// PHÃ¡ÂºÂ¦N 5: TELEGRAM BOT HANDLERS
-// ============================================
-
-/**
- * Handler cho lÃ¡Â»Ânh /start
- */
-bot.onText(/\/start/, (msg) => {
-  const helpMessage = `
-Ã°ÂÂ¤Â *DECADEX BOT*
-
-CÃÂ¡c lÃ¡Â»Ânh cÃÂ³ sÃ¡ÂºÂµn:
-Ã¢ÂÂ¢ /connect_wallet - TÃ¡ÂºÂ¡o vÃÂ­ mÃ¡Â»Âi
-Ã¢ÂÂ¢ /bid [sÃ¡Â»Â tiÃ¡Â»Ân] - ÃÂÃ¡ÂºÂ·t bid (vÃÂ­ dÃ¡Â»Â¥: /bid 100)
-
-GiÃ¡Â»Âi hÃ¡ÂºÂ¡n bid: ${BID_LIMITS.MIN_AMOUNT} - ${BID_LIMITS.MAX_AMOUNT}
-  `.trim();
-  
-  bot.sendMessage(msg.chat.id, helpMessage, { parse_mode: "Markdown" });
+// Log khi bot sáºµn sÃ ng
+bot.on("polling_error", (error) => {
+  console.error("[Bot] Polling error:", error.code, error.message);
 });
 
-/**
- * Handler cho lÃ¡Â»Ânh /connect_wallet
- */
-bot.onText(/\/connect_wallet/, async (msg) => {
-  try {
-    const newWallet = ethers.Wallet.createRandom();
-    userSessions[msg.chat.id] = newWallet;
-    
-    const response = `
-Ã¢ÂÂ *VÃÂ­ ÃÂÃÂ£ ÃÂÃÂ°Ã¡Â»Â£c tÃ¡ÂºÂ¡o thÃÂ nh cÃÂ´ng!*
+console.log("[Bot] â Telegram Bot ÄÃ£ khá»i táº¡o vá»i polling mode");
 
-Ã°ÂÂÂ ÃÂÃ¡Â»Âa chÃ¡Â»Â: \`${newWallet.address}\`
+// ============================================
+// PHáº¦N 3: KHá»I Táº O fhEVM
+// ============================================
 
-Ã¢ÂÂ Ã¯Â¸Â LÃÂ°u ÃÂ½: ÃÂÃÂ¢y lÃÂ  vÃÂ­ tÃ¡ÂºÂ¡m thÃ¡Â»Âi, sÃ¡ÂºÂ½ mÃ¡ÂºÂ¥t khi bot restart.
-    `.trim();
-    
-    bot.sendMessage(msg.chat.id, response, { parse_mode: "Markdown" });
-    console.log(`[Wallet] User ${msg.chat.id} ÃÂÃÂ£ kÃ¡ÂºÂ¿t nÃ¡Â»Âi vÃÂ­: ${newWallet.address.slice(0, 10)}...`);
-  } catch (error) {
-    console.error("[Wallet] LÃ¡Â»Âi tÃ¡ÂºÂ¡o vÃÂ­:", error.message);
-    bot.sendMessage(msg.chat.id, "Ã¢ÂÂ KhÃÂ´ng thÃ¡Â»Â tÃ¡ÂºÂ¡o vÃÂ­, vui lÃÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i.");
-  }
+console.log("[Bot] Báº¯t Äáº§u khá»i táº¡o fhEVM...");
+let fhevmReady = false;
+
+initializeFhEVM({
+  networkUrl: RPC_URL,
+  verifyingContract: process.env.CONTRACT_ADDRESS,
+  relayerUrl: process.env.RELAYER_URL, // Sáº½ dÃ¹ng default náº¿u undefined
+}).then(() => {
+  fhevmReady = true;
+  console.log("[Bot] â fhEVM ÄÃ£ sáºµn sÃ ng!");
+}).catch((error) => {
+  console.error("[Bot] â KhÃ´ng thá» khá»i táº¡o fhEVM:", error.message);
+  console.error("[Bot] Stack trace:", error.stack);
+  // KhÃ´ng exit - bot váº«n cÃ³ thá» pháº£n há»i vá»i thÃ´ng bÃ¡o lá»i
 });
 
+// ============================================
+// PHáº¦N 4: Xá»¬ LÃ COMMANDS
+// ============================================
+
+// Tráº¡ng thÃ¡i Äang chá» bid cho má»i user
+const pendingBids = new Map();
+
 /**
- * Handler cho lÃ¡Â»Ânh /bid
+ * Xá»­ lÃ½ lá»nh /start
  */
-bot.onText(/\/bid(?:\s+(.+))?/, async (msg, match) => {
+bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  const rawAmount = match[1];
+  const userId = msg.from?.id;
+  const username = msg.from?.username || msg.from?.first_name || "Unknown";
+  
+  console.log(`[Command] /start tá»« user ${username} (ID: ${userId}) trong chat ${chatId}`);
+  console.log(`[Command] Message object: ${JSON.stringify(msg, null, 2)}`);
+  
+  try {
+    const welcomeMessage = `
+ð¯ *ChÃ o má»«ng Äáº¿n vá»i DecaDex Bot!*
 
-  // KiÃ¡Â»Âm tra cÃÂ³ nhÃ¡ÂºÂ­p sÃ¡Â»Â tiÃ¡Â»Ân khÃÂ´ng
-  if (!rawAmount) {
-    bot.sendMessage(chatId, "Ã¢ÂÂ Vui lÃÂ²ng nhÃ¡ÂºÂ­p sÃ¡Â»Â tiÃ¡Â»Ân bid. VÃÂ­ dÃ¡Â»Â¥: /bid 100");
+Bot nÃ y cho phÃ©p báº¡n Äáº·t bid mÃ£ hÃ³a (encrypted bid) sá»­ dá»¥ng cÃ´ng nghá» FHE (Fully Homomorphic Encryption).
+
+ð *CÃ¡c lá»nh cÃ³ sáºµn:*
+â¢ /start - Hiá»n thá» menu nÃ y
+â¢ /bid - Äáº·t bid má»i (sáº½ há»i sá» tiá»n)
+â¢ /help - HÆ°á»ng dáº«n chi tiáº¿t
+â¢ /status - Kiá»m tra tráº¡ng thÃ¡i há» thá»ng
+
+ð¡ *Giá»i háº¡n bid:*
+â¢ Tá»i thiá»u: ${BID_LIMITS.MIN} wei
+â¢ Tá»i Äa: ${BID_LIMITS.MAX} wei
+
+ð Bid cá»§a báº¡n sáº½ ÄÆ°á»£c mÃ£ hÃ³a trÆ°á»c khi gá»­i lÃªn blockchain!
+    `;
+    
+    await bot.sendMessage(chatId, welcomeMessage, { parse_mode: "Markdown" });
+    console.log(`[Command] â ÄÃ£ gá»­i welcome message cho user ${username}`);
+  } catch (error) {
+    console.error(`[Command] â Lá»i khi xá»­ lÃ½ /start:`);
+    console.error(`[Command] Error: ${error.message}`);
+    console.error(`[Command] Stack: ${error.stack}`);
+    
+    try {
+      await bot.sendMessage(chatId, "â CÃ³ lá»i xáº£y ra. Vui lÃ²ng thá»­ láº¡i sau.");
+    } catch (sendError) {
+      console.error(`[Command] KhÃ´ng thá» gá»­i error message: ${sendError.message}`);
+    }
+  }
+});
+
+/**
+ * Xá»­ lÃ½ lá»nh /help
+ */
+bot.onText(/\/help/, async (msg) => {
+  const chatId = msg.chat.id;
+  const username = msg.from?.username || msg.from?.first_name || "Unknown";
+  
+  console.log(`[Command] /help tá»« user ${username} trong chat ${chatId}`);
+  
+  try {
+    const helpMessage = `
+ð *HÆ°á»ng dáº«n sá»­ dá»¥ng DecaDex Bot*
+
+*1. Äáº·t bid:*
+   â¢ Gá»­i lá»nh /bid
+   â¢ Bot sáº½ há»i sá» tiá»n bid (ÄÆ¡n vá»: wei)
+   â¢ Nháº­p sá» tiá»n vÃ  gá»­i
+   â¢ Bot sáº½ mÃ£ hÃ³a vÃ  gá»­i transaction
+
+*2. Kiá»m tra tráº¡ng thÃ¡i:*
+   â¢ Gá»­i lá»nh /status Äá» xem tráº¡ng thÃ¡i há» thá»ng
+
+*3. LÆ°u Ã½ quan trá»ng:*
+   â¢ Bid ÄÆ°á»£c mÃ£ hÃ³a hoÃ n toÃ n báº±ng FHE
+   â¢ KhÃ´ng ai cÃ³ thá» biáº¿t sá» tiá»n bid cá»§a báº¡n
+   â¢ Transaction cáº§n gas fee (Sepolia ETH)
+
+*4. Troubleshooting:*
+   â¢ Náº¿u bot khÃ´ng pháº£n há»i, thá»­ /start
+   â¢ Kiá»m tra káº¿t ná»i máº¡ng
+   â¢ Äáº£m báº£o wallet cÃ³ Äá»§ gas
+
+ð§ Há» trá»£: LiÃªn há» admin náº¿u gáº·p váº¥n Äá»
+    `;
+    
+    await bot.sendMessage(chatId, helpMessage, { parse_mode: "Markdown" });
+    console.log(`[Command] â ÄÃ£ gá»­i help message`);
+  } catch (error) {
+    console.error(`[Command] â Lá»i /help: ${error.message}`);
+    console.error(`[Command] Stack: ${error.stack}`);
+  }
+});
+
+/**
+ * Xá»­ lÃ½ lá»nh /status
+ */
+bot.onText(/\/status/, async (msg) => {
+  const chatId = msg.chat.id;
+  const username = msg.from?.username || msg.from?.first_name || "Unknown";
+  
+  console.log(`[Command] /status tá»« user ${username}`);
+  
+  try {
+    // Kiá»m tra cÃ¡c thÃ nh pháº§n
+    let networkStatus = "â ChÆ°a káº¿t ná»i";
+    let blockNumber = "N/A";
+    let balance = "N/A";
+    
+    try {
+      const network = await provider.getNetwork();
+      blockNumber = await provider.getBlockNumber();
+      const walletBalance = await provider.getBalance(wallet.address);
+      balance = ethers.formatEther(walletBalance) + " ETH";
+      networkStatus = `â ${network.name} (Chain ID: ${network.chainId})`;
+    } catch (e) {
+      console.error(`[Status] Lá»i kiá»m tra network: ${e.message}`);
+    }
+    
+    const statusMessage = `
+ð *Tráº¡ng thÃ¡i há» thá»ng*
+
+ð *Network:* ${networkStatus}
+ð¦ *Block hiá»n táº¡i:* ${blockNumber}
+ð° *Wallet balance:* ${balance}
+ð *fhEVM:* ${fhevmReady ? "â Sáºµn sÃ ng" : "â ChÆ°a khá»i táº¡o"}
+ð¤ *Bot:* â Äang hoáº¡t Äá»ng
+
+ð *Contract:* \`${process.env.CONTRACT_ADDRESS}\`
+    `;
+    
+    await bot.sendMessage(chatId, statusMessage, { parse_mode: "Markdown" });
+    console.log(`[Command] â ÄÃ£ gá»­i status`);
+  } catch (error) {
+    console.error(`[Command] â Lá»i /status: ${error.message}`);
+    console.error(`[Command] Stack: ${error.stack}`);
+  }
+});
+
+/**
+ * Xá»­ lÃ½ lá»nh /bid
+ */
+bot.onText(/\/bid/, async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from?.id;
+  const username = msg.from?.username || msg.from?.first_name || "Unknown";
+  
+  console.log(`[Command] /bid tá»« user ${username} (ID: ${userId})`);
+  
+  try {
+    // Kiá»m tra fhEVM
+    if (!fhevmReady) {
+      await bot.sendMessage(
+        chatId,
+        "â³ Há» thá»ng Äang khá»i táº¡o. Vui lÃ²ng thá»­ láº¡i sau 10 giÃ¢y."
+      );
+      console.log(`[Command] fhEVM chÆ°a sáºµn sÃ ng, tá»« chá»i bid`);
+      return;
+    }
+    
+    // Äáº·t tráº¡ng thÃ¡i chá» nháº­p bid
+    pendingBids.set(userId, { chatId, timestamp: Date.now() });
+    
+    await bot.sendMessage(
+      chatId,
+      `ð° *Nháº­p sá» tiá»n bid (ÄÆ¡n vá»: wei)*
+
+ð VÃ­ dá»¥: 1000000000000000000 (= 1 ETH)
+
+â ï¸ Giá»i háº¡n:
+â¢ Tá»i thiá»u: ${BID_LIMITS.MIN} wei
+â¢ Tá»i Äa: ${BID_LIMITS.MAX} wei
+
+_Gá»­i sá» tiá»n Äá» tiáº¿p tá»¥c hoáº·c /cancel Äá» há»§y_`,
+      { parse_mode: "Markdown" }
+    );
+    
+    console.log(`[Command] â ÄÃ£ yÃªu cáº§u nháº­p bid tá»« user ${username}`);
+  } catch (error) {
+    console.error(`[Command] â Lá»i /bid: ${error.message}`);
+    console.error(`[Command] Stack: ${error.stack}`);
+  }
+});
+
+/**
+ * Xá»­ lÃ½ lá»nh /cancel
+ */
+bot.onText(/\/cancel/, async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from?.id;
+  const username = msg.from?.username || msg.from?.first_name || "Unknown";
+  
+  console.log(`[Command] /cancel tá»« user ${username}`);
+  
+  if (pendingBids.has(userId)) {
+    pendingBids.delete(userId);
+    await bot.sendMessage(chatId, "â ÄÃ£ há»§y lá»nh bid.");
+    console.log(`[Command] â ÄÃ£ há»§y pending bid cá»§a user ${username}`);
+  } else {
+    await bot.sendMessage(chatId, "â¹ï¸ KhÃ´ng cÃ³ lá»nh nÃ o Äang chá» xá»­ lÃ½.");
+  }
+});
+
+// ============================================
+// PHáº¦N 5: Xá»¬ LÃ TIN NHáº®N (BID AMOUNT)
+// ============================================
+
+/**
+ * Xá»­ lÃ½ tin nháº¯n thÃ´ng thÆ°á»ng (khÃ´ng pháº£i command)
+ * DÃ¹ng Äá» nháº­n sá» tiá»n bid
+ */
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from?.id;
+  const text = msg.text;
+  const username = msg.from?.username || msg.from?.first_name || "Unknown";
+  
+  // Log má»i message nháº­n ÄÆ°á»£c
+  console.log(`[Message] Nháº­n message tá»« user ${username} (ID: ${userId}): "${text}"`);
+  
+  // Bá» qua commands (ÄÃ£ ÄÆ°á»£c xá»­ lÃ½ á» trÃªn)
+  if (text && text.startsWith("/")) {
+    console.log(`[Message] Bá» qua command: ${text}`);
     return;
   }
-
-  // ThÃÂ´ng bÃÂ¡o ÃÂang xÃ¡Â»Â­ lÃÂ½
-  const processingMsg = await bot.sendMessage(chatId, "Ã¢ÂÂ³ ÃÂang xÃ¡Â»Â­ lÃÂ½ bid...");
-
-  // XÃ¡Â»Â­ lÃÂ½ bid
-  const result = await processBid(chatId, rawAmount);
-
-  // XÃÂ³a message ÃÂang xÃ¡Â»Â­ lÃÂ½
+  
+  // Kiá»m tra xem cÃ³ Äang chá» bid khÃ´ng
+  if (!pendingBids.has(userId)) {
+    console.log(`[Message] User ${username} khÃ´ng cÃ³ pending bid, bá» qua message`);
+    return;
+  }
+  
+  console.log(`[Message] Xá»­ lÃ½ bid amount tá»« user ${username}: ${text}`);
+  
   try {
-    await bot.deleteMessage(chatId, processingMsg.message_id);
-  } catch (e) {
-    // Ignore nÃ¡ÂºÂ¿u khÃÂ´ng xÃÂ³a ÃÂÃÂ°Ã¡Â»Â£c
-  }
-
-  // GÃ¡Â»Â­i kÃ¡ÂºÂ¿t quÃ¡ÂºÂ£
-  if (result.success) {
-    const successMessage = `
-Ã¢ÂÂ *Bid thÃÂ nh cÃÂ´ng!*
-
-Ã°ÂÂÂ° SÃ¡Â»Â tiÃ¡Â»Ân: ${result.amount}
-Ã°ÂÂÂ TX Hash: \`${result.txHash}\`
-Ã°ÂÂÂ¦ Block: ${result.blockNumber}
-Ã¢ÂÂ±Ã¯Â¸Â ThÃ¡Â»Âi gian: ${result.elapsed}ms
-    `.trim();
+    // XÃ³a pending state
+    pendingBids.delete(userId);
     
-    bot.sendMessage(chatId, successMessage, { parse_mode: "Markdown" });
-  } else {
-    bot.sendMessage(chatId, `Ã¢ÂÂ ${result.error}`);
+    // Validate sá» tiá»n
+    const validation = validateBidAmount(text);
+    if (!validation.isValid) {
+      console.log(`[Bid] Validation failed: ${validation.error}`);
+      await bot.sendMessage(chatId, `â ${validation.error}\n\nGá»­i /bid Äá» thá»­ láº¡i.`);
+      return;
+    }
+    
+    const amount = validation.amount;
+    console.log(`[Bid] Amount há»£p lá»: ${amount}`);
+    
+    // ThÃ´ng bÃ¡o Äang xá»­ lÃ½
+    const processingMsg = await bot.sendMessage(
+      chatId,
+      "â³ Äang xá»­ lÃ½ bid...\nð MÃ£ hÃ³a sá» tiá»n..."
+    );
+    
+    // MÃ£ hÃ³a bid
+    console.log(`[Bid] Báº¯t Äáº§u mÃ£ hÃ³a...`);
+    const encryptedAmount = await encryptBidAmount(amount);
+    console.log(`[Bid] â MÃ£ hÃ³a thÃ nh cÃ´ng`);
+    
+    // Cáº­p nháº­t message
+    await bot.editMessageText(
+      "â³ Äang xá»­ lÃ½ bid...\nð MÃ£ hÃ³a sá» tiá»n... â\nð¤ Gá»­i transaction...",
+      { chat_id: chatId, message_id: processingMsg.message_id }
+    );
+    
+    // Gá»­i transaction
+    console.log(`[Bid] Gá»­i transaction...`);
+    const tx = await contract.bid(encryptedAmount);
+    console.log(`[Bid] Transaction hash: ${tx.hash}`);
+    
+    // Cáº­p nháº­t message
+    await bot.editMessageText(
+      `â³ Äang xá»­ lÃ½ bid...
+ð MÃ£ hÃ³a sá» tiá»n... â
+ð¤ Gá»­i transaction... â
+â³ Chá» confirmation...
+
+ð TX: \`${tx.hash}\``,
+      { chat_id: chatId, message_id: processingMsg.message_id, parse_mode: "Markdown" }
+    );
+    
+    // Chá» confirmation
+    console.log(`[Bid] Chá» confirmation...`);
+    const receipt = await tx.wait();
+    console.log(`[Bid] â Transaction confirmed! Block: ${receipt.blockNumber}`);
+    
+    // ThÃ´ng bÃ¡o thÃ nh cÃ´ng
+    await bot.editMessageText(
+      `â *Bid thÃ nh cÃ´ng!*
+
+ð *Chi tiáº¿t:*
+â¢ Block: ${receipt.blockNumber}
+â¢ Gas used: ${receipt.gasUsed.toString()}
+
+ð *Transaction:*
+\`${tx.hash}\`
+
+ð [Xem trÃªn Etherscan](https://sepolia.etherscan.io/tx/${tx.hash})`,
+      { 
+        chat_id: chatId, 
+        message_id: processingMsg.message_id, 
+        parse_mode: "Markdown",
+        disable_web_page_preview: true
+      }
+    );
+    
+    console.log(`[Bid] â HoÃ n táº¥t bid cho user ${username}`);
+    
+  } catch (error) {
+    console.error(`[Bid] â Lá»i khi xá»­ lÃ½ bid:`);
+    console.error(`[Bid] Error name: ${error.name}`);
+    console.error(`[Bid] Error message: ${error.message}`);
+    console.error(`[Bid] Stack trace: ${error.stack}`);
+    
+    let errorMessage = "â CÃ³ lá»i xáº£y ra khi xá»­ lÃ½ bid.\n\n";
+    
+    if (error.message.includes("insufficient funds")) {
+      errorMessage += "ð° Wallet khÃ´ng Äá»§ gas. Vui lÃ²ng náº¡p thÃªm Sepolia ETH.";
+    } else if (error.message.includes("mÃ£ hÃ³a")) {
+      errorMessage += "ð Lá»i mÃ£ hÃ³a. Vui lÃ²ng thá»­ láº¡i.";
+    } else if (error.message.includes("network")) {
+      errorMessage += "ð Lá»i káº¿t ná»i máº¡ng. Vui lÃ²ng thá»­ láº¡i.";
+    } else {
+      errorMessage += `Lá»i: ${error.message}`;
+    }
+    
+    errorMessage += "\n\nGá»­i /bid Äá» thá»­ láº¡i.";
+    
+    await bot.sendMessage(chatId, errorMessage);
   }
 });
 
 // ============================================
-// PHÃ¡ÂºÂ¦N 6: KHÃ¡Â»ÂI ÃÂÃ¡Â»ÂNG BOT
+// PHáº¦N 6: GRACEFUL SHUTDOWN
 // ============================================
 
-/**
- * HÃÂ m khÃ¡Â»Âi ÃÂÃ¡Â»Âng chÃÂ­nh
- * KhÃ¡Â»Âi tÃ¡ÂºÂ¡o fhEVM trÃÂ°Ã¡Â»Âc khi bÃ¡ÂºÂ¯t ÃÂÃ¡ÂºÂ§u nhÃ¡ÂºÂ­n lÃ¡Â»Ânh
- */
-async function startBot() {
-  console.log("[Bot] ÃÂang khÃ¡Â»Âi ÃÂÃ¡Â»Âng...");
-  
-  // Pre-initialize fhEVM singleton ÃÂÃ¡Â»Â giÃ¡ÂºÂ£m latency cho bid ÃÂÃ¡ÂºÂ§u tiÃÂªn
-  const fhevmReady = await initializeFhEVMSingleton();
-  
-  if (fhevmReady) {
-    console.log("[Bot] fhEVM ÃÂÃÂ£ sÃ¡ÂºÂµn sÃÂ ng - Singleton pattern active");
-  } else {
-    console.warn("[Bot] fhEVM sÃ¡ÂºÂ½ ÃÂÃÂ°Ã¡Â»Â£c khÃ¡Â»Âi tÃ¡ÂºÂ¡o khi cÃÂ³ bid ÃÂÃ¡ÂºÂ§u tiÃÂªn");
-  }
-  
-  console.log("=== DECADEX BOT ONLINE! ===");
-  console.log(`[Config] Contract: ${validatedContractAddress}`);
-  console.log(`[Config] Network: Sepolia (Alchemy)`);
-}
-
-// KhÃ¡Â»Âi ÃÂÃ¡Â»Âng bot
-startBot().catch((error) => {
-  console.error("[Fatal] LÃ¡Â»Âi khÃ¡Â»Âi ÃÂÃ¡Â»Âng bot:", error.message);
-  process.exit(1);
-});
-
-// Graceful shutdown
 process.on("SIGINT", () => {
-  console.log("\n[Bot] ÃÂang tÃ¡ÂºÂ¯t...");
+  console.log("\n[Bot] Nháº­n SIGINT, Äang táº¯t bot...");
   bot.stopPolling();
+  console.log("[Bot] â ÄÃ£ táº¯t polling");
   process.exit(0);
 });
 
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("[Error] Unhandled Rejection:", reason);
+process.on("SIGTERM", () => {
+  console.log("\n[Bot] Nháº­n SIGTERM, Äang táº¯t bot...");
+  bot.stopPolling();
+  console.log("[Bot] â ÄÃ£ táº¯t polling");
+  process.exit(0);
 });
+
+// Báº¯t unhandled errors
+process.on("uncaughtException", (error) => {
+  console.error("[Bot] â Uncaught Exception:");
+  console.error(`[Bot] Error: ${error.message}`);
+  console.error(`[Bot] Stack: ${error.stack}`);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[Bot] â Unhandled Rejection at:", promise);
+  console.error(`[Bot] Reason: ${reason}`);
+});
+
+console.log("=== DECADEX BOT READY ===");
+console.log("[Bot] Bot Äang láº¯ng nghe commands...");
+console.log("[Bot] Gá»­i /start Äá» báº¯t Äáº§u");
