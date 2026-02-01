@@ -2,178 +2,182 @@ import { createInstance } from "@zama-fhe/relayer-sdk/node";
 
 /**
  * FhEVM Singleton Module
- * Quáº£n lÃ½ má»t instance fhEVM duy nháº¥t cho toÃ n bá» á»©ng dá»¥ng
- * Sá»­ dá»¥ng Singleton pattern Äá» trÃ¡nh táº¡o instance má»i má»i láº§n bid
+ * Manages a single fhEVM instance for the entire application
+ * Uses Singleton pattern to avoid creating new instances for each bid
  * 
- * FIX: Import tá»« @zama-fhe/relayer-sdk/node (cÃ³ /node)
+ * FIX: Import from @zama-fhe/relayer-sdk/node (with /node suffix)
  */
 
-// Biáº¿n private lÆ°u trá»¯ instance duy nháº¥t
+// Private variable storing the singleton instance
 let fhevmInstance = null;
 
-// Tráº¡ng thÃ¡i khá»i táº¡o Äá» trÃ¡nh race condition
+// Initialization state to prevent race conditions
 let isInitializing = false;
 let initializationPromise = null;
 
 /**
- * RELAYER_URL máº·c Äá»nh cho Zama testnet
- * User cÃ³ thá» override qua environment variable
+ * Default RELAYER_URL for Zama testnet
+ * User can override via environment variable
  */
 const DEFAULT_RELAYER_URL = "https://relayer.testnet.zama.org";
 
 /**
- * Cáº¥u hÃ¬nh máº·c Äá»nh cho fhEVM
- * Sá»­ dá»¥ng Sepolia testnet (networkUrl sáº½ ÄÆ°á»£c set tá»« env)
+ * Default configuration for fhEVM
+ * Uses Sepolia testnet (networkUrl will be set from env)
  */
 const DEFAULT_CONFIG = {
-  verifyingContract: null, // Sáº½ ÄÆ°á»£c set khi khá»i táº¡o
-  networkUrl: null,        // Sáº½ ÄÆ°á»£c set khi khá»i táº¡o
-  relayerUrl: null,        // Sáº½ ÄÆ°á»£c set khi khá»i táº¡o
+  verifyingContract: null, // Will be set during initialization
+  networkUrl: null,        // Will be set during initialization
+  relayerUrl: null,        // Will be set during initialization
 };
 
 /**
- * Láº¥y relayerUrl tá»« config hoáº·c environment hoáº·c default
+ * Get relayerUrl from config or environment or default
  */
 function getRelayerUrl(config) {
   return config?.relayerUrl || process.env.RELAYER_URL || DEFAULT_RELAYER_URL;
 }
 
 /**
- * Kiá»m tra fhEVM ÄÃ£ ÄÆ°á»£c khá»i táº¡o chÆ°a
- * @returns {boolean} true náº¿u ÄÃ£ khá»i táº¡o
+ * Check if fhEVM has been initialized
+ * @returns {boolean} true if initialized
  */
 export function isInitialized() {
   return fhevmInstance !== null;
 }
 
 /**
- * Láº¥y instance fhEVM hiá»n táº¡i
- * Throw error náº¿u chÆ°a khá»i táº¡o
+ * Get current fhEVM instance
+ * Throws error if not initialized
  * @returns {object} fhEVM instance
  */
 export function getFhEVMInstance() {
   if (!fhevmInstance) {
-    throw new Error("FhEVM chÆ°a ÄÆ°á»£c khá»i táº¡o. Gá»i initializeFhEVM() trÆ°á»c.");
+    throw new Error("FhEVM not initialized. Call initializeFhEVM() first.");
   }
   return fhevmInstance;
 }
 
 /**
- * Khá»i táº¡o fhEVM vá»i Singleton pattern
- * Äáº£m báº£o chá» cÃ³ má»t instance ÄÆ°á»£c táº¡o
- * 
- * @param {Object} config - Cáº¥u hÃ¬nh khá»i táº¡o
- * @param {string} config.networkUrl - RPC URL (báº¯t buá»c)
- * @param {string} config.relayerUrl - Relayer URL (optional, cÃ³ default)
- * @param {string} config.contractAddress - Contract address (báº¯t buá»c)
+ * Initialize fhEVM singleton
+ * If already initialized, returns existing instance
+ * If initializing, waits for completion
+ * @param {object} config - Configuration object
+ * @param {string} config.rpcUrl - Ethereum RPC URL
+ * @param {string} config.contractAddress - Verifying contract address
+ * @param {string} [config.relayerUrl] - Relayer URL (optional)
  * @returns {Promise<object>} fhEVM instance
  */
-export async function initializeFhEVM(config = {}) {
-  // Náº¿u ÄÃ£ cÃ³ instance, return luÃ´n
+export async function initializeFhEVM(config) {
+  // Already initialized - return existing instance
   if (fhevmInstance) {
-    console.log("[FhEVM] Sá»­ dá»¥ng instance hiá»n cÃ³");
+    console.log("[FhEVM] Already initialized, reusing existing instance");
     return fhevmInstance;
   }
-  
-  // Náº¿u Äang khá»i táº¡o, Äá»£i promise hoÃ n thÃ nh
+
+  // Currently initializing - wait for completion
   if (isInitializing && initializationPromise) {
-    console.log("[FhEVM] Äang Äá»£i khá»i táº¡o hoÃ n thÃ nh...");
+    console.log("[FhEVM] Initialization in progress, waiting...");
     return initializationPromise;
   }
-  
-  // Báº¯t Äáº§u khá»i táº¡o
+
+  // Start initialization
   isInitializing = true;
-  
+  console.log("[FhEVM] Starting initialization...");
+
   initializationPromise = (async () => {
     try {
-      console.log("[FhEVM] Báº¯t Äáº§u khá»i táº¡o...");
-      
       // Validate required config
-      const networkUrl = config.networkUrl || process.env.RPC_URL;
-      if (!networkUrl) {
-        throw new Error("networkUrl (RPC_URL) lÃ  báº¯t buá»c Äá» khá»i táº¡o fhEVM");
+      if (!config?.rpcUrl) {
+        throw new Error("rpcUrl is required for FhEVM initialization");
       }
-      
-      const contractAddress = config.contractAddress || process.env.CONTRACT_ADDRESS;
-      if (!contractAddress) {
-        throw new Error("contractAddress lÃ  báº¯t buá»c Äá» khá»i táº¡o fhEVM");
+      if (!config?.contractAddress) {
+        throw new Error("contractAddress is required for FhEVM initialization");
       }
-      
+
       const relayerUrl = getRelayerUrl(config);
       
-      console.log(`[FhEVM] Network URL: ${networkUrl.substring(0, 30)}...`);
-      console.log(`[FhEVM] Relayer URL: ${relayerUrl}`);
-      console.log(`[FhEVM] Contract: ${contractAddress}`);
+      console.log("[FhEVM] Configuration:");
+      console.log("  - networkUrl:", config.rpcUrl);
+      console.log("  - contractAddress:", config.contractAddress);
+      console.log("  - relayerUrl:", relayerUrl);
+
+      // Create fhEVM instance using Zama SDK
+      console.log("[FhEVM] Creating instance...");
       
-      // Táº¡o instance fhEVM
       fhevmInstance = await createInstance({
-        networkUrl: networkUrl,
-        relayerUrl: relayerUrl,
+        networkUrl: config.rpcUrl,
+        gatewayUrl: relayerUrl,
       });
-      
-      console.log("[FhEVM] â Khá»i táº¡o thÃ nh cÃ´ng!");
+
+      console.log("[FhEVM] Instance created successfully");
+      isInitializing = false;
       
       return fhevmInstance;
       
     } catch (error) {
-      // Reset tráº¡ng thÃ¡i náº¿u lá»i
-      fhevmInstance = null;
+      console.error("[FhEVM] Initialization failed:", error.message);
       isInitializing = false;
       initializationPromise = null;
-      
-      console.error("[FhEVM] â Lá»i khá»i táº¡o:", error.message);
+      fhevmInstance = null;
       throw error;
     }
   })();
-  
+
   return initializationPromise;
 }
 
 /**
- * MÃ£ hÃ³a bid amount vá»i FHE
- * 
- * @param {number} amount - Sá» tiá»n cáº§n mÃ£ hÃ³a
- * @param {string} contractAddress - Äá»a chá» contract
- * @param {string} userAddress - Äá»a chá» user
- * @returns {Promise<{encryptedValue: string, inputProof: string}>}
+ * Encrypt bid amount using FhEVM
+ * @param {number} amount - Bid amount to encrypt
+ * @returns {Promise<Uint8Array>} Encrypted bid data
  */
-export async function encryptBidAmount(amount, contractAddress, userAddress) {
-  // Äáº£m báº£o ÄÃ£ khá»i táº¡o
+export async function encryptBidAmount(amount) {
   if (!fhevmInstance) {
-    throw new Error("FhEVM chÆ°a ÄÆ°á»£c khá»i táº¡o. Gá»i initializeFhEVM() trÆ°á»c.");
+    throw new Error("FhEVM not initialized. Call initializeFhEVM() first.");
   }
-  
+
   try {
-    console.log(`[FhEVM] MÃ£ hÃ³a bid amount: ${amount}`);
+    console.log("[FhEVM] Encrypting bid amount:", amount);
     
-    // Táº¡o input cho encryption
-    const input = fhevmInstance.createEncryptedInput(contractAddress, userAddress);
+    // Create encrypted input using fhEVM instance
+    const encryptedInput = fhevmInstance.createEncryptedInput();
     
-    // ThÃªm sá» nguyÃªn 64-bit (euint64)
-    input.add64(BigInt(amount));
+    // Add the bid amount as encrypted uint64
+    encryptedInput.add64(BigInt(amount));
     
-    // Encrypt
-    const encrypted = await input.encrypt();
+    // Encrypt and return the result
+    const encrypted = encryptedInput.encrypt();
     
-    console.log("[FhEVM] â MÃ£ hÃ³a thÃ nh cÃ´ng");
-    
-    return {
-      encryptedValue: encrypted.handles[0],
-      inputProof: encrypted.inputProof
-    };
+    console.log("[FhEVM] Encryption successful");
+    return encrypted;
     
   } catch (error) {
-    console.error("[FhEVM] â Lá»i mÃ£ hÃ³a:", error.message);
-    throw error;
+    console.error("[FhEVM] Encryption failed:", error.message);
+    throw new Error(`Failed to encrypt bid: ${error.message}`);
   }
 }
 
 /**
- * Reset instance (dÃ¹ng cho testing hoáº·c cleanup)
+ * Reset fhEVM instance (for testing or reconnection)
+ * Use with caution - will require re-initialization
  */
 export function resetFhEVM() {
+  console.log("[FhEVM] Resetting instance...");
   fhevmInstance = null;
   isInitializing = false;
   initializationPromise = null;
-  console.log("[FhEVM] Instance ÄÃ£ ÄÆ°á»£c reset");
+  console.log("[FhEVM] Instance reset complete");
+}
+
+/**
+ * Get fhEVM status information
+ * @returns {object} Status object with initialization state
+ */
+export function getFhEVMStatus() {
+  return {
+    initialized: fhevmInstance !== null,
+    initializing: isInitializing,
+    instance: fhevmInstance ? "active" : "null",
+  };
 }
