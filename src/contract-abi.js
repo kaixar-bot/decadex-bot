@@ -4,6 +4,8 @@
  * 
  * This is a FHE (Fully Homomorphic Encryption) auction contract.
  * The bid function accepts encrypted values via Zama's fhEVM.
+ * 
+ * ABI ÄÆ°á»£c embedded trá»±c tiáº¿p trong code
  */
 
 export const DECADEX_ABI = [
@@ -59,24 +61,29 @@ export const DECADEX_ABI = [
     "type": "function"
   },
   
-  // Get highest bidder address
+  // === EVENTS ===
+  
+  // Emitted when a new bid is placed
   {
-    "inputs": [],
-    "name": "highestBidder",
-    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-    "stateMutability": "view",
-    "type": "function"
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "bidder", "type": "address"}
+    ],
+    "name": "BidPlaced",
+    "type": "event"
   },
   
-  // Get highest bid amount (may be encrypted)
+  // Emitted when auction ends
   {
-    "inputs": [],
-    "name": "highestBid",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "winner", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "AuctionEnded",
+    "type": "event"
   }
 ];
 
-// Default export for convenience
+// Export default cho compatibility
 export default DECADEX_ABI;
