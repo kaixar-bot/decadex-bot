@@ -1,12 +1,14 @@
 import { createInstance, SepoliaConfig } from "@zama-fhe/relayer-sdk/node";
+import { ethers } from "ethers";
 
 /**
  * FhEVM Singleton Module
  * Manages a single fhEVM instance for the entire application
  * Uses Singleton pattern to avoid creating new instances for each bid
- * 
+ *
  * FIX: Import from @zama-fhe/relayer-sdk/node (with /node suffix)
  * FIX: Use SepoliaConfig or full contract addresses for SDK 0.4.x
+ * FIX: Use ethers.getAddress() to checksum contract addresses
  */
 
 // Private variable storing the singleton instance
@@ -54,7 +56,7 @@ function getRelayerUrl(config) {
  * Get network RPC URL from config or environment
  */
 function getNetworkUrl(config) {
-  return config?.rpcUrl || process.env.RPC_URL || 'https://eth-sepolia.public.blastapi.io';
+  return config?.networkUrl || process.env.RPC_URL || 'https://sepolia.public-rpc.blastapi.io';
 }
 
 /**
@@ -66,9 +68,9 @@ export function isInitialized() {
 }
 
 /**
- * Get current fhEVM instance
- * Throws error if not initialized
+ * Get the singleton fhEVM instance
  * @returns {object} fhEVM instance
+ * @throws {Error} if not initialized
  */
 export function getFhEVMInstance() {
   if (!fhevmInstance) {
@@ -78,26 +80,23 @@ export function getFhEVMInstance() {
 }
 
 /**
- * Initialize fhEVM singleton using SDK 0.4.x API
- * If already initialized, returns existing instance
- * If initializing, waits for completion
+ * Initialize fhEVM singleton instance
+ * Thread-safe - prevents multiple simultaneous initializations
  * 
- * SDK 0.4.x requires specific contract addresses instead of just networkUrl/gatewayUrl
- * 
- * @param {object} config - Configuration object
- * @param {string} config.rpcUrl - Ethereum RPC URL (optional, defaults to Sepolia)
- * @param {string} config.relayerUrl - Relayer URL (optional, defaults to Zama testnet)
- * @param {boolean} config.useSepoliaConfig - Use built-in SepoliaConfig (recommended)
+ * @param {object} config - Configuration options
+ * @param {string} config.networkUrl - RPC URL for the network
+ * @param {string} config.relayerUrl - Relayer URL for Zama
+ * @param {string} config.contractAddress - Contract address (for logging)
  * @returns {Promise<object>} fhEVM instance
  */
 export async function initializeFhEVM(config = {}) {
-  // Already initialized - return existing instance
+  // If already initialized, return existing instance
   if (fhevmInstance) {
-    console.log("[FhEVM] Already initialized, reusing existing instance");
+    console.log("[FhEVM] Already initialized, reusing instance");
     return fhevmInstance;
   }
 
-  // Currently initializing - wait for completion
+  // If initialization is in progress, wait for it
   if (isInitializing && initializationPromise) {
     console.log("[FhEVM] Initialization in progress, waiting...");
     return initializationPromise;
@@ -105,45 +104,36 @@ export async function initializeFhEVM(config = {}) {
 
   // Start initialization
   isInitializing = true;
-  console.log("[FhEVM] Starting initialization with SDK 0.4.x...");
-
+  
   initializationPromise = (async () => {
     try {
       const relayerUrl = getRelayerUrl(config);
       const networkUrl = getNetworkUrl(config);
-      
-      console.log("[FhEVM] Configuration:");
-      console.log("  - relayerUrl:", relayerUrl);
-      console.log("  - networkUrl:", networkUrl);
-      console.log("  - chainId:", SEPOLIA_CONTRACTS.chainId);
-      console.log("  - gatewayChainId:", SEPOLIA_CONTRACTS.gatewayChainId);
+
+      console.log("[FhEVM] Initializing with relayer:", relayerUrl);
+      console.log("[FhEVM] Network URL:", networkUrl);
+      console.log("[FhEVM] Chain ID:", SEPOLIA_CONTRACTS.chainId);
+      console.log("[FhEVM] Gateway Chain ID:", SEPOLIA_CONTRACTS.gatewayChainId);
 
       // Method 1: Use built-in SepoliaConfig (simplest)
-      // Method 2: Use full contract addresses with custom relayer/network
+      // Method 2: Full manual config (if needed)
       
-      // We use Method 2 to allow custom relayerUrl and networkUrl from env
-      const instanceConfig = {
-        ...SEPOLIA_CONTRACTS,
-        network: networkUrl,
+      // Using SepoliaConfig with relayerUrl override
+      fhevmInstance = await createInstance({
+        ...SepoliaConfig,
         relayerUrl: relayerUrl,
-      };
-
-      console.log("[FhEVM] Creating instance with full config...");
-      
-      fhevmInstance = await createInstance(instanceConfig);
+      });
 
       console.log("[FhEVM] Instance created successfully");
-      isInitializing = false;
-      
       return fhevmInstance;
-      
     } catch (error) {
       console.error("[FhEVM] Initialization failed:", error.message);
-      console.error("[FhEVM] Stack:", error.stack);
+      fhevmInstance = null;
       isInitializing = false;
       initializationPromise = null;
-      fhevmInstance = null;
       throw error;
+    } finally {
+      isInitializing = false;
     }
   })();
 
@@ -151,31 +141,63 @@ export async function initializeFhEVM(config = {}) {
 }
 
 /**
- * Encrypt bid amount using FhEVM
- * @param {number} amount - Bid amount in wei
- * @param {string} contractAddress - Target contract address
+ * Checksum an Ethereum address using ethers.getAddress()
+ * Throws if address is invalid
+ * 
+ * @param {string} address - Address to checksum
+ * @param {string} label - Label for error messages
+ * @returns {string} Checksummed address
+ */
+function checksumAddress(address, label = "Address") {
+  if (!address || typeof address !== 'string') {
+    throw new Error(`${label} is required and must be a string`);
+  }
+  
+  try {
+    return ethers.getAddress(address);
+  } catch (error) {
+    throw new Error(`${label} is not a valid Ethereum address: ${address}`);
+  }
+}
+
+/**
+ * Encrypt a bid amount using FHE
+ * 
+ * FIX: Use ethers.getAddress() to checksum addresses before passing to SDK
+ * The fhEVM SDK requires properly checksummed addresses
+ * 
+ * @param {number|string|bigint} amount - Bid amount to encrypt
+ * @param {string} contractAddress - Smart contract address
  * @param {string} userAddress - User's wallet address
- * @returns {Promise<Uint8Array>} Encrypted bid data
+ * @returns {Promise<object>} Encrypted input with proof
  */
 export async function encryptBidAmount(amount, contractAddress, userAddress) {
   const instance = getFhEVMInstance();
-  
+
   console.log("[FhEVM] Encrypting bid amount:", amount);
-  console.log("[FhEVM] Contract:", contractAddress);
-  console.log("[FhEVM] User:", userAddress);
-  
+  console.log("[FhEVM] Contract (raw):", contractAddress);
+  console.log("[FhEVM] User (raw):", userAddress);
+
   try {
-    // Create input for encryption
-    const input = instance.createEncryptedInput(contractAddress, userAddress);
-    
+    // FIX: Checksum addresses using ethers.getAddress()
+    // fhEVM SDK requires properly checksummed addresses
+    const checksummedContract = checksumAddress(contractAddress, "Contract address");
+    const checksummedUser = checksumAddress(userAddress, "User address");
+
+    console.log("[FhEVM] Contract (checksummed):", checksummedContract);
+    console.log("[FhEVM] User (checksummed):", checksummedUser);
+
+    // Create input for encryption with checksummed addresses
+    const input = instance.createEncryptedInput(checksummedContract, checksummedUser);
+
     // Add amount as encrypted uint256
     input.add256(BigInt(amount));
-    
+
     // Encrypt and get proof
     const encryptedInput = await input.encrypt();
-    
+
     console.log("[FhEVM] Encryption successful");
-    
+
     return encryptedInput;
   } catch (error) {
     console.error("[FhEVM] Encryption failed:", error.message);
