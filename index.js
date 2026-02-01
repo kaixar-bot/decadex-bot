@@ -3,9 +3,10 @@
 import "dotenv/config";
 import TelegramBot from "node-telegram-bot-api";
 import { ethers } from "ethers";
-import { readFileSync } from "fs";
+// ABI embedded in code - no fs read needed
+import { DECADEX_ABI } from "./src/contract-abi.js";
 
-// Import cÃ¡c module ÄÃ£ tÃ¡ch
+// Import cÃÂ¡c module ÃÂÃÂ£ tÃÂ¡ch
 import { 
   initializeFhEVM, 
   getFhEVMInstance, 
@@ -53,7 +54,7 @@ const requiredVars = ["TELEGRAM_BOT_TOKEN", "PRIVATE_KEY", "RPC_URL"];
 console.log("[ENV] Checking required variables:");
 requiredVars.forEach(varName => {
   const value = process.env[varName];
-  const status = value ? `â SET (length: ${value.length})` : "â MISSING";
+  const status = value ? `Ã¢ÂÂ SET (length: ${value.length})` : "Ã¢ÂÂ MISSING";
   console.log(`[ENV]   ${varName}: ${status}`);
 });
 console.log("=== END ENVIRONMENT DEBUG ===\n");
@@ -61,7 +62,7 @@ console.log("=== END ENVIRONMENT DEBUG ===\n");
 // === VALIDATE ENVIRONMENT BEFORE STARTING ===
 const envValidation = validateEnvVariables();
 if (!envValidation.isValid) {
-  console.error("\nâ ENVIRONMENT VALIDATION FAILED:");
+  console.error("\nÃ¢ÂÂ ENVIRONMENT VALIDATION FAILED:");
   console.error(envValidation.error);
   console.error("\nPlease set the required environment variables and restart.");
   console.error("Required: TELEGRAM_BOT_TOKEN, PRIVATE_KEY, RPC_URL");
@@ -86,15 +87,9 @@ const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
-// Load ABI
-let contractABI;
-try {
-  contractABI = JSON.parse(readFileSync("./abi/DecaDex.json", "utf8"));
-  console.log("[INIT] ABI loaded successfully");
-} catch (error) {
-  console.error("[INIT] Failed to load ABI:", error.message);
-  process.exit(1);
-}
+// ABI is now imported as ES module - no file system dependency
+const contractABI = DECADEX_ABI;
+console.log("[INIT] ABI loaded from embedded module");
 
 // Initialize contract
 const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, wallet);
@@ -102,7 +97,7 @@ const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, wallet);
 // State tracking
 const userStates = {};
 
-// Helper function Äá» gá»­i message vá»i retry
+// Helper function ÃÂÃ¡Â»Â gÃ¡Â»Â­i message vÃ¡Â»Âi retry
 async function sendMessageWithRetry(chatId, text, options = {}, maxRetries = 3) {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -118,7 +113,7 @@ async function sendMessageWithRetry(chatId, text, options = {}, maxRetries = 3) 
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const welcomeMessage = `
-ð¯ *Welcome to DecaDex Bot!*
+Ã°ÂÂÂ¯ *Welcome to DecaDex Bot!*
 
 This bot helps you interact with the DecaDex smart contract on Zama network.
 
@@ -138,16 +133,16 @@ This bot helps you interact with the DecaDex smart contract on Zama network.
 bot.onText(/\/help/, async (msg) => {
   const chatId = msg.chat.id;
   const helpMessage = `
-ð *DecaDex Bot Help*
+Ã°ÂÂÂ *DecaDex Bot Help*
 
 *Commands:*
-â¢ /bid <amount> - Place an encrypted bid
+Ã¢ÂÂ¢ /bid <amount> - Place an encrypted bid
   Example: /bid 100
   Min: ${BID_LIMITS.MIN_AMOUNT}, Max: ${BID_LIMITS.MAX_AMOUNT}
 
-â¢ /balance - Check your wallet balance
+Ã¢ÂÂ¢ /balance - Check your wallet balance
 
-â¢ /contract - View contract details
+Ã¢ÂÂ¢ /contract - View contract details
 
 *How Bidding Works:*
 1. Your bid amount is encrypted using FHE
@@ -170,7 +165,7 @@ bot.onText(/\/balance/, async (msg) => {
     const balanceInEth = ethers.formatEther(balance);
     
     const balanceMessage = `
-ð° *Wallet Balance*
+Ã°ÂÂÂ° *Wallet Balance*
 
 Address: \`${wallet.address}\`
 Balance: ${balanceInEth} ETH
@@ -179,7 +174,7 @@ Balance: ${balanceInEth} ETH
     await sendMessageWithRetry(chatId, balanceMessage, { parse_mode: "Markdown" });
   } catch (error) {
     console.error("[BALANCE] Error:", error);
-    await sendMessageWithRetry(chatId, "â Failed to fetch balance. Please try again.");
+    await sendMessageWithRetry(chatId, "Ã¢ÂÂ Failed to fetch balance. Please try again.");
   }
 });
 
@@ -188,16 +183,16 @@ bot.onText(/\/contract/, async (msg) => {
   const chatId = msg.chat.id;
   
   const contractMessage = `
-ð *Contract Information*
+Ã°ÂÂÂ *Contract Information*
 
 Address: \`${CONTRACT_ADDRESS}\`
 Network: Zama Devnet
 Relayer: ${RELAYER_URL}
 
 *Features:*
-â¢ FHE-encrypted bidding
-â¢ Confidential transactions
-â¢ Secure auction mechanism
+Ã¢ÂÂ¢ FHE-encrypted bidding
+Ã¢ÂÂ¢ Confidential transactions
+Ã¢ÂÂ¢ Secure auction mechanism
   `;
   
   await sendMessageWithRetry(chatId, contractMessage, { parse_mode: "Markdown" });
@@ -211,7 +206,7 @@ bot.onText(/\/bid(?:\s+(.+))?/, async (msg, match) => {
   // Validate amount
   if (!amountStr) {
     await sendMessageWithRetry(chatId, `
-â *Missing bid amount*
+Ã¢ÂÂ *Missing bid amount*
 
 Usage: /bid <amount>
 Example: /bid 100
@@ -224,19 +219,19 @@ Limits: Min ${BID_LIMITS.MIN_AMOUNT}, Max ${BID_LIMITS.MAX_AMOUNT}
   // Validate bid amount
   const validation = validateBidAmount(amountStr);
   if (!validation.isValid) {
-    await sendMessageWithRetry(chatId, `â *Invalid bid:* ${validation.error}`, { parse_mode: "Markdown" });
+    await sendMessageWithRetry(chatId, `Ã¢ÂÂ *Invalid bid:* ${validation.error}`, { parse_mode: "Markdown" });
     return;
   }
   
   const amount = validation.value;
   
   // Send processing message
-  const processingMsg = await sendMessageWithRetry(chatId, "â³ Processing your bid...");
+  const processingMsg = await sendMessageWithRetry(chatId, "Ã¢ÂÂ³ Processing your bid...");
   
   try {
     // Initialize FhEVM if not already
     if (!isInitialized()) {
-      await bot.editMessageText("ð Initializing encryption...", {
+      await bot.editMessageText("Ã°ÂÂÂ Initializing encryption...", {
         chat_id: chatId,
         message_id: processingMsg.message_id
       });
@@ -245,7 +240,7 @@ Limits: Min ${BID_LIMITS.MIN_AMOUNT}, Max ${BID_LIMITS.MAX_AMOUNT}
     }
     
     // Encrypt the bid
-    await bot.editMessageText("ð Encrypting your bid...", {
+    await bot.editMessageText("Ã°ÂÂÂ Encrypting your bid...", {
       chat_id: chatId,
       message_id: processingMsg.message_id
     });
@@ -253,7 +248,7 @@ Limits: Min ${BID_LIMITS.MIN_AMOUNT}, Max ${BID_LIMITS.MAX_AMOUNT}
     const encryptedBid = await encryptBidAmount(amount);
     
     // Send transaction
-    await bot.editMessageText("ð¤ Sending transaction...", {
+    await bot.editMessageText("Ã°ÂÂÂ¤ Sending transaction...", {
       chat_id: chatId,
       message_id: processingMsg.message_id
     });
@@ -261,7 +256,7 @@ Limits: Min ${BID_LIMITS.MIN_AMOUNT}, Max ${BID_LIMITS.MAX_AMOUNT}
     const tx = await contract.placeBid(encryptedBid.handles[0], encryptedBid.inputProof);
     
     await bot.editMessageText(`
-â³ *Transaction Submitted*
+Ã¢ÂÂ³ *Transaction Submitted*
 
 Hash: \`${tx.hash}\`
 Waiting for confirmation...
@@ -275,7 +270,7 @@ Waiting for confirmation...
     const receipt = await tx.wait();
     
     await bot.editMessageText(`
-â *Bid Placed Successfully!*
+Ã¢ÂÂ *Bid Placed Successfully!*
 
 Amount: ${amount} (encrypted)
 Transaction: \`${tx.hash}\`
@@ -299,7 +294,7 @@ Gas Used: ${receipt.gasUsed.toString()}
       errorMessage = "Network error. Please check RPC connection.";
     }
     
-    await bot.editMessageText(`â *Bid Failed*\n\nError: ${errorMessage}`, {
+    await bot.editMessageText(`Ã¢ÂÂ *Bid Failed*\n\nError: ${errorMessage}`, {
       chat_id: chatId,
       message_id: processingMsg.message_id,
       parse_mode: "Markdown"
@@ -317,7 +312,7 @@ bot.on("error", (error) => {
 });
 
 // Startup message
-console.log("\nâ DecaDex Bot started successfully!");
-console.log(`ð Contract: ${CONTRACT_ADDRESS}`);
-console.log(`ð¼ Wallet: ${wallet.address}`);
-console.log("ð¤ Waiting for commands...\n");
+console.log("\nÃ¢ÂÂ DecaDex Bot started successfully!");
+console.log(`Ã°ÂÂÂ Contract: ${CONTRACT_ADDRESS}`);
+console.log(`Ã°ÂÂÂ¼ Wallet: ${wallet.address}`);
+console.log("Ã°ÂÂ¤Â Waiting for commands...\n");
