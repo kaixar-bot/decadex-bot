@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 // ABI embedded in code - no fs read needed
 import { DECADEX_ABI } from "./src/contract-abi.js";
 
-// Import cÃÂ¡c module ÃÂÃÂ£ tÃÂ¡ch
+// Import cÃ¡c module ÄÃ£ tÃ¡ch
 import { 
   initializeFhEVM, 
   getFhEVMInstance, 
@@ -22,6 +22,13 @@ import {
 // === DEFAULT VALUES ===
 const DEFAULT_CONTRACT_ADDRESS = "0xe9c1349c959f98f3d6e1c25b1bc3a4376921423d";
 const DEFAULT_RELAYER_URL = "https://relayer.testnet.zama.org";
+
+// === SINGLETON PATTERN FOR BOT INSTANCE ===
+let botInstance = null;
+let isShuttingDown = false;
+let pollingRetryCount = 0;
+const MAX_POLLING_RETRIES = 10;
+const INITIAL_RETRY_DELAY = 1000; // 1 second
 
 // === DEBUG: Log available environment variables (names only, not values for security) ===
 console.log("=== ENVIRONMENT DEBUG ===");
@@ -54,265 +61,430 @@ const requiredVars = ["TELEGRAM_BOT_TOKEN", "PRIVATE_KEY", "RPC_URL"];
 console.log("[ENV] Checking required variables:");
 requiredVars.forEach(varName => {
   const value = process.env[varName];
-  const status = value ? `Ã¢ÂÂ SET (length: ${value.length})` : "Ã¢ÂÂ MISSING";
+  const status = value ? `â SET (length: ${value.length})` : "â NOT SET";
+  console.log(`[ENV]   ${varName}: ${status}`);
+});
+
+// Check optional vars
+const optionalVars = ["CONTRACT_ADDRESS", "RELAYER_URL"];
+console.log("[ENV] Checking optional variables (have defaults):");
+optionalVars.forEach(varName => {
+  const value = process.env[varName];
+  const status = value ? `â SET (length: ${value.length})` : "â Using default";
   console.log(`[ENV]   ${varName}: ${status}`);
 });
 console.log("=== END ENVIRONMENT DEBUG ===\n");
 
-// === VALIDATE ENVIRONMENT BEFORE STARTING ===
-const envValidation = validateEnvVariables();
-if (!envValidation.isValid) {
-  console.error("\nÃ¢ÂÂ ENVIRONMENT VALIDATION FAILED:");
-  console.error(envValidation.error);
-  console.error("\nPlease set the required environment variables and restart.");
-  console.error("Required: TELEGRAM_BOT_TOKEN, PRIVATE_KEY, RPC_URL");
-  console.error("Optional: CONTRACT_ADDRESS (has default), RELAYER_URL (has default)");
+// === VALIDATE ENVIRONMENT VARIABLES ===
+const envValidation = validateEnvVariables(process.env);
+if (!envValidation.valid) {
+  console.error("â Missing required environment variables:");
+  envValidation.errors.forEach(err => console.error(`   - ${err}`));
+  console.error("\nð¡ HÆ°á»ng dáº«n:");
+  console.error("   1. VÃ o Replit Secrets (Tools â Secrets)");
+  console.error("   2. ThÃªm cÃ¡c biáº¿n mÃ´i trÆ°á»ng báº¯t buá»c:");
+  console.error("      - TELEGRAM_BOT_TOKEN: Token tá»« @BotFather");
+  console.error("      - PRIVATE_KEY: Private key cá»§a wallet (khÃ´ng cÃ³ 0x)");
+  console.error("      - RPC_URL: Zama testnet RPC URL");
+  console.error("   3. CÃ¡c biáº¿n optional (cÃ³ default):");
+  console.error("      - CONTRACT_ADDRESS: DecaDex contract address");
+  console.error("      - RELAYER_URL: Zama relayer URL");
   process.exit(1);
 }
 
-// === CONFIGURATION ===
-// Apply defaults for optional variables
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || DEFAULT_CONTRACT_ADDRESS;
-const RELAYER_URL = process.env.RELAYER_URL || DEFAULT_RELAYER_URL;
+// === LOAD CONFIG FROM ENVIRONMENT ===
+const CONFIG = {
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+  PRIVATE_KEY: process.env.PRIVATE_KEY,
+  RPC_URL: process.env.RPC_URL,
+  CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS || DEFAULT_CONTRACT_ADDRESS,
+  RELAYER_URL: process.env.RELAYER_URL || DEFAULT_RELAYER_URL,
+};
 
-console.log("[CONFIG] Using configuration:");
-console.log(`[CONFIG]   CONTRACT_ADDRESS: ${CONTRACT_ADDRESS}${!process.env.CONTRACT_ADDRESS ? ' (default)' : ''}`);
-console.log(`[CONFIG]   RELAYER_URL: ${RELAYER_URL}${!process.env.RELAYER_URL ? ' (default)' : ''}`);
-console.log(`[CONFIG]   RPC_URL: ${process.env.RPC_URL.substring(0, 30)}...`);
+console.log("â Configuration loaded successfully");
+console.log(`   Contract: ${CONFIG.CONTRACT_ADDRESS}`);
+console.log(`   RPC: ${CONFIG.RPC_URL}`);
+console.log(`   Relayer: ${CONFIG.RELAYER_URL}`);
 
-// Initialize Telegram Bot
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
-
-// Initialize ethers provider and wallet
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-
-// ABI is now imported as ES module - no file system dependency
-const contractABI = DECADEX_ABI;
-console.log("[INIT] ABI loaded from embedded module");
-
-// Initialize contract
-const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, wallet);
-
-// State tracking
-const userStates = {};
-
-// Helper function ÃÂÃ¡Â»Â gÃ¡Â»Â­i message vÃ¡Â»Âi retry
-async function sendMessageWithRetry(chatId, text, options = {}, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await bot.sendMessage(chatId, text, options);
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-    }
-  }
+// === EXPONENTIAL BACKOFF FOR RETRY ===
+function getRetryDelay(retryCount) {
+  // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s, 64s, 128s, 256s, 512s
+  // Cap at 5 minutes (300 seconds)
+  const delay = Math.min(INITIAL_RETRY_DELAY * Math.pow(2, retryCount), 300000);
+  return delay;
 }
 
-// Command: /start
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-  const welcomeMessage = `
-Ã°ÂÂÂ¯ *Welcome to DecaDex Bot!*
-
-This bot helps you interact with the DecaDex smart contract on Zama network.
-
-*Available Commands:*
-/bid <amount> - Place a bid (encrypted with FHE)
-/balance - Check your wallet balance
-/contract - View contract information
-/help - Show this help message
-
-*Contract Address:* \`${CONTRACT_ADDRESS}\`
-  `;
+// === GRACEFUL SHUTDOWN HANDLER ===
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) {
+    console.log("[BOT] Shutdown already in progress...");
+    return;
+  }
   
-  await sendMessageWithRetry(chatId, welcomeMessage, { parse_mode: "Markdown" });
+  isShuttingDown = true;
+  console.log(`\n[BOT] Received ${signal}. Starting graceful shutdown...`);
+  
+  if (botInstance) {
+    try {
+      console.log("[BOT] Stopping polling...");
+      await botInstance.stopPolling({ cancel: true });
+      console.log("[BOT] Polling stopped successfully");
+      
+      // Delete webhook to ensure clean state for next restart
+      console.log("[BOT] Cleaning up webhook...");
+      await botInstance.deleteWebHook({ drop_pending_updates: true });
+      console.log("[BOT] Webhook deleted");
+    } catch (error) {
+      console.error("[BOT] Error during shutdown:", error.message);
+    }
+  }
+  
+  console.log("[BOT] Shutdown complete. Goodbye!");
+  process.exit(0);
+}
+
+// Register shutdown handlers
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('uncaughtException', (error) => {
+  console.error("[BOT] Uncaught exception:", error);
+  gracefulShutdown('uncaughtException');
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error("[BOT] Unhandled rejection at:", promise, "reason:", reason);
 });
 
-// Command: /help
-bot.onText(/\/help/, async (msg) => {
-  const chatId = msg.chat.id;
-  const helpMessage = `
-Ã°ÂÂÂ *DecaDex Bot Help*
+// === SINGLETON BOT GETTER ===
+function getBotInstance() {
+  if (botInstance) {
+    console.log("[BOT] Returning existing bot instance (singleton)");
+    return botInstance;
+  }
+  
+  console.log("[BOT] Creating new bot instance...");
+  botInstance = new TelegramBot(CONFIG.TELEGRAM_BOT_TOKEN, { 
+    polling: {
+      autoStart: false, // We'll start polling manually after webhook cleanup
+      params: {
+        timeout: 30
+      }
+    }
+  });
+  
+  return botInstance;
+}
+
+// === INITIALIZE BOT WITH CLEAN STATE ===
+async function initializeBot() {
+  console.log("[BOT] Initializing bot with clean state...");
+  
+  const bot = getBotInstance();
+  
+  // Delete any existing webhook to ensure clean polling state
+  // This is critical to prevent 409 Conflict errors
+  console.log("[BOT] Deleting existing webhook (if any)...");
+  try {
+    await bot.deleteWebHook({ drop_pending_updates: true });
+    console.log("[BOT] â Webhook deleted, pending updates dropped");
+  } catch (error) {
+    console.warn("[BOT] Warning: Could not delete webhook:", error.message);
+  }
+  
+  // Small delay to ensure Telegram API processes the webhook deletion
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  return bot;
+}
+
+// === START POLLING WITH RETRY LOGIC ===
+async function startPollingWithRetry(bot) {
+  while (!isShuttingDown && pollingRetryCount < MAX_POLLING_RETRIES) {
+    try {
+      console.log(`[BOT] Starting polling (attempt ${pollingRetryCount + 1}/${MAX_POLLING_RETRIES})...`);
+      await bot.startPolling({ restart: false });
+      console.log("[BOT] â Polling started successfully");
+      pollingRetryCount = 0; // Reset on success
+      return true;
+    } catch (error) {
+      pollingRetryCount++;
+      
+      if (error.message && error.message.includes('409')) {
+        console.error("[BOT] â 409 Conflict detected - another instance may be running");
+        console.log("[BOT] Attempting to clean up and retry...");
+        
+        try {
+          await bot.stopPolling({ cancel: true });
+          await bot.deleteWebHook({ drop_pending_updates: true });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (cleanupError) {
+          console.warn("[BOT] Cleanup error:", cleanupError.message);
+        }
+      }
+      
+      if (pollingRetryCount < MAX_POLLING_RETRIES) {
+        const delay = getRetryDelay(pollingRetryCount - 1);
+        console.log(`[BOT] Retrying in ${delay/1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  if (pollingRetryCount >= MAX_POLLING_RETRIES) {
+    console.error("[BOT] â Max polling retries exceeded. Please check:");
+    console.error("   1. No other bot instances are running");
+    console.error("   2. Bot token is correct");
+    console.error("   3. Network connection is stable");
+    return false;
+  }
+  
+  return false;
+}
+
+// === POLLING ERROR HANDLER ===
+function setupPollingErrorHandler(bot) {
+  bot.on('polling_error', async (error) => {
+    console.error("[BOT] Polling error:", error.code, error.message);
+    
+    if (error.code === 'ETELEGRAM' && error.message.includes('409')) {
+      console.log("[BOT] 409 Conflict in polling - attempting recovery...");
+      
+      if (!isShuttingDown) {
+        try {
+          await bot.stopPolling({ cancel: true });
+          await bot.deleteWebHook({ drop_pending_updates: true });
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          await startPollingWithRetry(bot);
+        } catch (recoveryError) {
+          console.error("[BOT] Recovery failed:", recoveryError.message);
+        }
+      }
+    }
+  });
+}
+
+// === KHá»I Táº O PROVIDER VÃ WALLET ===
+const provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
+const wallet = new ethers.Wallet(CONFIG.PRIVATE_KEY, provider);
+const contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, DECADEX_ABI, wallet);
+
+// === COMMAND HANDLERS ===
+function setupCommandHandlers(bot) {
+  // /start command
+  bot.onText(/\/start/, async (msg) => {
+    const chatId = msg.chat.id;
+    const username = msg.from.username || msg.from.first_name || "User";
+    
+    console.log(`[CMD] /start from @${username} (chat: ${chatId})`);
+    
+    const welcomeMessage = `
+ð® *Welcome to DecaDex Bot, ${username}!*
+
+This bot allows you to interact with the DecaDex private auction contract on Zama's fhEVM testnet.
+
+*Available Commands:*
+/start - Show this welcome message
+/help - Show detailed help
+/info - View auction information
+/bid <amount> - Place a bid (encrypted)
+/status - Check bot and contract status
+
+*About DecaDex:*
+DecaDex uses Fully Homomorphic Encryption (FHE) to keep your bid amounts private until the auction ends.
+
+Type /help for more details!
+    `;
+    
+    await bot.sendMessage(chatId, welcomeMessage, { parse_mode: "Markdown" });
+  });
+
+  // /help command
+  bot.onText(/\/help/, async (msg) => {
+    const chatId = msg.chat.id;
+    console.log(`[CMD] /help from chat: ${chatId}`);
+    
+    const helpMessage = `
+ð *DecaDex Bot Help*
 
 *Commands:*
-Ã¢ÂÂ¢ /bid <amount> - Place an encrypted bid
-  Example: /bid 100
-  Min: ${BID_LIMITS.MIN_AMOUNT}, Max: ${BID_LIMITS.MAX_AMOUNT}
-
-Ã¢ÂÂ¢ /balance - Check your wallet balance
-
-Ã¢ÂÂ¢ /contract - View contract details
+â¢ /start - Welcome message
+â¢ /help - This help text
+â¢ /info - View current auction info
+â¢ /bid <amount> - Place encrypted bid
+â¢ /status - Bot and contract status
 
 *How Bidding Works:*
 1. Your bid amount is encrypted using FHE
-2. The encrypted bid is sent to the contract
-3. Only the contract can decrypt and process bids
+2. The encrypted bid is sent to the smart contract
+3. No one can see your bid amount until auction ends
+4. Winner is determined by comparing encrypted values
 
-*Security:*
-All bids are fully encrypted - no one can see your bid amount except the contract!
-  `;
-  
-  await sendMessageWithRetry(chatId, helpMessage, { parse_mode: "Markdown" });
-});
+*Bid Limits:*
+â¢ Minimum: ${BID_LIMITS.MIN} wei
+â¢ Maximum: ${BID_LIMITS.MAX} wei
 
-// Command: /balance
-bot.onText(/\/balance/, async (msg) => {
-  const chatId = msg.chat.id;
-  
-  try {
-    const balance = await provider.getBalance(wallet.address);
-    const balanceInEth = ethers.formatEther(balance);
-    
-    const balanceMessage = `
-Ã°ÂÂÂ° *Wallet Balance*
-
-Address: \`${wallet.address}\`
-Balance: ${balanceInEth} ETH
+*Network:* Zama fhEVM Testnet
+*Contract:* ${CONFIG.CONTRACT_ADDRESS}
     `;
     
-    await sendMessageWithRetry(chatId, balanceMessage, { parse_mode: "Markdown" });
-  } catch (error) {
-    console.error("[BALANCE] Error:", error);
-    await sendMessageWithRetry(chatId, "Ã¢ÂÂ Failed to fetch balance. Please try again.");
-  }
-});
+    await bot.sendMessage(chatId, helpMessage, { parse_mode: "Markdown" });
+  });
 
-// Command: /contract
-bot.onText(/\/contract/, async (msg) => {
-  const chatId = msg.chat.id;
-  
-  const contractMessage = `
-Ã°ÂÂÂ *Contract Information*
+  // /status command
+  bot.onText(/\/status/, async (msg) => {
+    const chatId = msg.chat.id;
+    console.log(`[CMD] /status from chat: ${chatId}`);
+    
+    try {
+      const fhevmStatus = isInitialized() ? "â Initialized" : "â³ Not initialized";
+      const networkInfo = await provider.getNetwork();
+      
+      const statusMessage = `
+ð *Bot Status*
 
-Address: \`${CONTRACT_ADDRESS}\`
-Network: Zama Devnet
-Relayer: ${RELAYER_URL}
+*Bot:* â Running
+*fhEVM:* ${fhevmStatus}
+*Network:* ${networkInfo.name} (Chain ID: ${networkInfo.chainId})
+*Contract:* \`${CONFIG.CONTRACT_ADDRESS}\`
+*Wallet:* \`${wallet.address}\`
+      `;
+      
+      await bot.sendMessage(chatId, statusMessage, { parse_mode: "Markdown" });
+    } catch (error) {
+      console.error("[CMD] /status error:", error);
+      await bot.sendMessage(chatId, "â Error fetching status: " + error.message);
+    }
+  });
 
-*Features:*
-Ã¢ÂÂ¢ FHE-encrypted bidding
-Ã¢ÂÂ¢ Confidential transactions
-Ã¢ÂÂ¢ Secure auction mechanism
-  `;
-  
-  await sendMessageWithRetry(chatId, contractMessage, { parse_mode: "Markdown" });
-});
+  // /info command
+  bot.onText(/\/info/, async (msg) => {
+    const chatId = msg.chat.id;
+    console.log(`[CMD] /info from chat: ${chatId}`);
+    
+    try {
+      // Try to get auction info from contract
+      const auctionEndTime = await contract.auctionEndTime();
+      const highestBidder = await contract.highestBidder();
+      const ended = await contract.ended();
+      
+      const endDate = new Date(Number(auctionEndTime) * 1000);
+      
+      const infoMessage = `
+ð·ï¸ *Auction Information*
 
-// Command: /bid
-bot.onText(/\/bid(?:\s+(.+))?/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const amountStr = match[1];
-  
-  // Validate amount
-  if (!amountStr) {
-    await sendMessageWithRetry(chatId, `
-Ã¢ÂÂ *Missing bid amount*
+*Status:* ${ended ? "ð´ Ended" : "ð¢ Active"}
+*End Time:* ${endDate.toISOString()}
+*Highest Bidder:* \`${highestBidder}\`
+*Contract:* \`${CONFIG.CONTRACT_ADDRESS}\`
 
-Usage: /bid <amount>
-Example: /bid 100
+_Note: Bid amounts are encrypted and hidden until auction ends._
+      `;
+      
+      await bot.sendMessage(chatId, infoMessage, { parse_mode: "Markdown" });
+    } catch (error) {
+      console.error("[CMD] /info error:", error);
+      await bot.sendMessage(chatId, `â Error fetching auction info: ${error.message}`);
+    }
+  });
 
-Limits: Min ${BID_LIMITS.MIN_AMOUNT}, Max ${BID_LIMITS.MAX_AMOUNT}
-    `, { parse_mode: "Markdown" });
-    return;
-  }
-  
-  // Validate bid amount
-  const validation = validateBidAmount(amountStr);
-  if (!validation.isValid) {
-    await sendMessageWithRetry(chatId, `Ã¢ÂÂ *Invalid bid:* ${validation.error}`, { parse_mode: "Markdown" });
-    return;
-  }
-  
-  const amount = validation.value;
-  
-  // Send processing message
-  const processingMsg = await sendMessageWithRetry(chatId, "Ã¢ÂÂ³ Processing your bid...");
+  // /bid command
+  bot.onText(/\/bid(\s+(.+))?/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const amountStr = match[2];
+    
+    console.log(`[CMD] /bid from chat: ${chatId}, amount: ${amountStr}`);
+    
+    if (!amountStr) {
+      await bot.sendMessage(chatId, "â Please specify a bid amount.\n\nUsage: /bid <amount>\nExample: /bid 100");
+      return;
+    }
+    
+    // Validate bid amount
+    const validation = validateBidAmount(amountStr);
+    if (!validation.valid) {
+      await bot.sendMessage(chatId, `â Invalid bid: ${validation.error}`);
+      return;
+    }
+    
+    const amount = validation.amount;
+    
+    try {
+      // Initialize fhEVM if not already done
+      if (!isInitialized()) {
+        await bot.sendMessage(chatId, "â³ Initializing fhEVM... Please wait.");
+        await initializeFhEVM(provider, CONFIG.CONTRACT_ADDRESS, CONFIG.RELAYER_URL);
+      }
+      
+      await bot.sendMessage(chatId, "ð Encrypting your bid...");
+      
+      // Encrypt the bid amount
+      const encryptedAmount = await encryptBidAmount(
+        amount,
+        CONFIG.CONTRACT_ADDRESS,
+        wallet.address
+      );
+      
+      await bot.sendMessage(chatId, "ð¤ Submitting encrypted bid to blockchain...");
+      
+      // Submit the bid
+      const tx = await contract.bid(encryptedAmount, { gasLimit: 500000 });
+      await bot.sendMessage(chatId, `â³ Transaction submitted: \`${tx.hash}\`\n\nWaiting for confirmation...`);
+      
+      const receipt = await tx.wait();
+      
+      if (receipt.status === 1) {
+        await bot.sendMessage(chatId, `â Bid placed successfully!\n\nTx Hash: \`${receipt.hash}\`\nBlock: ${receipt.blockNumber}\nGas Used: ${receipt.gasUsed.toString()}`, { parse_mode: "Markdown" });
+      } else {
+        await bot.sendMessage(chatId, "â Transaction failed. Please try again.");
+      }
+      
+    } catch (error) {
+      console.error("[CMD] /bid error:", error);
+      await bot.sendMessage(chatId, `â Error placing bid: ${error.message}`);
+    }
+  });
+}
+
+// === MAIN STARTUP ===
+async function main() {
+  console.log("\n========================================");
+  console.log("   DecaDex Telegram Bot Starting...");
+  console.log("========================================\n");
   
   try {
-    // Initialize FhEVM if not already
-    if (!isInitialized()) {
-      await bot.editMessageText("Ã°ÂÂÂ Initializing encryption...", {
-        chat_id: chatId,
-        message_id: processingMsg.message_id
-      });
-      
-      await initializeFhEVM(provider, CONTRACT_ADDRESS, wallet);
+    // Initialize bot with clean state (delete webhook first)
+    const bot = await initializeBot();
+    
+    // Setup error handlers
+    setupPollingErrorHandler(bot);
+    
+    // Setup command handlers
+    setupCommandHandlers(bot);
+    
+    // Start polling with retry logic
+    const pollingStarted = await startPollingWithRetry(bot);
+    
+    if (!pollingStarted) {
+      console.error("[BOT] Failed to start polling. Exiting...");
+      process.exit(1);
     }
     
-    // Encrypt the bid
-    await bot.editMessageText("Ã°ÂÂÂ Encrypting your bid...", {
-      chat_id: chatId,
-      message_id: processingMsg.message_id
-    });
+    // Initialize fhEVM in background
+    console.log("[fhEVM] Initializing fhEVM in background...");
+    initializeFhEVM(provider, CONFIG.CONTRACT_ADDRESS, CONFIG.RELAYER_URL)
+      .then(() => console.log("[fhEVM] â fhEVM initialized successfully"))
+      .catch(err => console.warn("[fhEVM] â  Background initialization failed:", err.message));
     
-    const encryptedBid = await encryptBidAmount(amount);
-    
-    // Send transaction
-    await bot.editMessageText("Ã°ÂÂÂ¤ Sending transaction...", {
-      chat_id: chatId,
-      message_id: processingMsg.message_id
-    });
-    
-    const tx = await contract.placeBid(encryptedBid.handles[0], encryptedBid.inputProof);
-    
-    await bot.editMessageText(`
-Ã¢ÂÂ³ *Transaction Submitted*
-
-Hash: \`${tx.hash}\`
-Waiting for confirmation...
-    `, {
-      chat_id: chatId,
-      message_id: processingMsg.message_id,
-      parse_mode: "Markdown"
-    });
-    
-    // Wait for confirmation
-    const receipt = await tx.wait();
-    
-    await bot.editMessageText(`
-Ã¢ÂÂ *Bid Placed Successfully!*
-
-Amount: ${amount} (encrypted)
-Transaction: \`${tx.hash}\`
-Block: ${receipt.blockNumber}
-Gas Used: ${receipt.gasUsed.toString()}
-    `, {
-      chat_id: chatId,
-      message_id: processingMsg.message_id,
-      parse_mode: "Markdown"
-    });
+    console.log("\n========================================");
+    console.log("   â Bot is now running!");
+    console.log(`   Wallet: ${wallet.address}`);
+    console.log(`   Contract: ${CONFIG.CONTRACT_ADDRESS}`);
+    console.log("========================================\n");
     
   } catch (error) {
-    console.error("[BID] Error:", error);
-    
-    let errorMessage = "Unknown error occurred";
-    if (error.message.includes("insufficient funds")) {
-      errorMessage = "Insufficient funds for transaction";
-    } else if (error.message.includes("nonce")) {
-      errorMessage = "Transaction nonce error. Please try again.";
-    } else if (error.code === "NETWORK_ERROR") {
-      errorMessage = "Network error. Please check RPC connection.";
-    }
-    
-    await bot.editMessageText(`Ã¢ÂÂ *Bid Failed*\n\nError: ${errorMessage}`, {
-      chat_id: chatId,
-      message_id: processingMsg.message_id,
-      parse_mode: "Markdown"
-    });
+    console.error("[FATAL] Failed to start bot:", error);
+    process.exit(1);
   }
-});
+}
 
-// Error handling
-bot.on("polling_error", (error) => {
-  console.error("[BOT] Polling error:", error.code, error.message);
-});
-
-bot.on("error", (error) => {
-  console.error("[BOT] Error:", error);
-});
-
-// Startup message
-console.log("\nÃ¢ÂÂ DecaDex Bot started successfully!");
-console.log(`Ã°ÂÂÂ Contract: ${CONTRACT_ADDRESS}`);
-console.log(`Ã°ÂÂÂ¼ Wallet: ${wallet.address}`);
-console.log("Ã°ÂÂ¤Â Waiting for commands...\n");
+// Start the bot
+main();
