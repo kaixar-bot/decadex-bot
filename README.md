@@ -139,6 +139,50 @@ User (Telegram)
    - Verify wallet has Sepolia ETH for gas
    - Check RPC_URL is working
 
+
+## Bug Fixes History
+
+### Fix 6: Contract Address Required Error (2026-02-01)
+
+**Error:** `Contract address is required and must be a string`
+
+**Root Cause:**
+The `encryptBidAmount()` function in `fhevm-singleton.js` requires 3 parameters:
+```javascript
+export async function encryptBidAmount(amount, contractAddress, userAddress)
+```
+
+But `index.js` was calling it with only 1 parameter:
+```javascript
+// WRONG
+const encryptedBid = await encryptBidAmount(amount);
+```
+
+**Fix:**
+Pass all required parameters:
+```javascript
+// CORRECT
+const encryptedBid = await encryptBidAmount(amount, CONFIG.CONTRACT_ADDRESS, wallet.address);
+```
+
+**Debug logs added:**
+```javascript
+console.log("[BID] CONTRACT_ADDRESS:", CONFIG.CONTRACT_ADDRESS);
+console.log("[BID] Wallet address:", wallet.address);
+console.log("[BID] Amount:", amount);
+```
+
+### Previous Fixes
+
+| # | Error | Root Cause | Fix |
+|---|-------|------------|-----|
+| 5 | UTF-8 encoding issues | Vietnamese characters in source | Remove non-ASCII characters |
+| 4 | 409 Conflict | Multiple bot instances | Delete webhook before polling |
+| 3 | relayerUrl undefined | Missing default value | Add DEFAULT_RELAYER_URL |
+| 2 | ABI loading failed | File read issues | Embed ABI in code |
+| 1 | envValidation.errors undefined | Wrong validation logic | Fix validation return structure |
+
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
