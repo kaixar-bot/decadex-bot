@@ -344,8 +344,13 @@ RPC: ${CONFIG.RPC_URL}
       // Encrypt the bid - pass CONTRACT_ADDRESS and user address
       const encryptedBid = await encryptBidAmount(amount, CONFIG.CONTRACT_ADDRESS, wallet.address);
       
+      // DEBUG: Log encrypted result
+      console.log("[BID] Encrypted handles:", encryptedBid.handles);
+      console.log("[BID] Encrypted inputProof length:", encryptedBid.inputProof?.length);
+      
       // Send transaction
-      const tx = await contract.placeBid(encryptedBid);
+      // FIX: Call bid() with handles[0] and inputProof (Zama SDK format)
+      const tx = await contract.bid(encryptedBid.handles[0], encryptedBid.inputProof);
       await bot.sendMessage(chatId, `Bid submitted successfully!\n\nAmount: ${amount}\nTx Hash: ${tx.hash}`);
       
       // Wait for confirmation
