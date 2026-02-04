@@ -80,7 +80,7 @@ if (!envValidation.valid) {
     console.error("[ERROR] Invalid environment configuration");
   }
   console.error("\nRequired variables:");
-  console.error("- TELEGRAM_TOKEN: Your Telegram bot token from @BotFather");
+  console.error("- TELEGRAM_BOT_TOKEN: Your Telegram bot token from @BotFather");
   console.error("- PRIVATE_KEY: Your wallet private key (with 0x prefix)");
   console.error("\nOptional variables:");
   console.error("- CONTRACT_ADDRESS: DecaDex contract (default: " + DEFAULT_CONTRACT_ADDRESS + ")");
@@ -91,7 +91,7 @@ if (!envValidation.valid) {
 
 // === BUILD CONFIG ===
 const CONFIG = {
-  TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   PRIVATE_KEY: process.env.PRIVATE_KEY,
   CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS || DEFAULT_CONTRACT_ADDRESS,
   RPC_URL: process.env.RPC_URL || "https://sepolia.gateway.tenderly.co",
@@ -100,14 +100,14 @@ const CONFIG = {
 
 // Debug config (without exposing sensitive values)
 console.log("=== CONFIG ===");
-console.log("[CONFIG] TELEGRAM_TOKEN:", CONFIG.TELEGRAM_TOKEN ? "SET" : "NOT SET");
+console.log("[CONFIG] TELEGRAM_BOT_TOKEN:", CONFIG.TELEGRAM_BOT_TOKEN ? "SET" : "NOT SET");
 console.log("[CONFIG] PRIVATE_KEY:", CONFIG.PRIVATE_KEY ? "SET (length: " + CONFIG.PRIVATE_KEY.length + ")" : "NOT SET");
 console.log("[CONFIG] CONTRACT_ADDRESS:", CONFIG.CONTRACT_ADDRESS);
 console.log("[CONFIG] RPC_URL:", CONFIG.RPC_URL);
 console.log("[CONFIG] RELAYER_URL:", CONFIG.RELAYER_URL);
 
 // === INITIALIZE PROVIDER AND WALLET ===
-const provider = new ethers.providers.JsonRpcProvider(CONFIG.RPC_URL);
+const provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
 const wallet = new ethers.Wallet(CONFIG.PRIVATE_KEY, provider);
 const contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, DECADEX_ABI, wallet);
 
@@ -221,7 +221,7 @@ async function createBot() {
   console.log("[BOT] Creating new bot instance...");
   
   // Create bot with polling disabled initially
-  const bot = new TelegramBot(CONFIG.TELEGRAM_TOKEN, { polling: false });
+  const bot = new TelegramBot(CONFIG.TELEGRAM_BOT_TOKEN, { polling: false });
   
   // Delete webhook first
   await deleteWebhookAndStartPolling(bot);
@@ -273,20 +273,20 @@ async function createBot() {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const welcomeMessage = `
-ð¯ *Welcome to DecaDex FHE Auction Bot!*
+Ã°ÂÂÂ¯ *Welcome to DecaDex FHE Auction Bot!*
 
 This bot allows you to place encrypted bids on the DecaDex auction using Fully Homomorphic Encryption (FHE).
 
 *Commands:*
-â¢ /bid <amount> - Place an encrypted bid
-â¢ /status - Check auction status
-â¢ /help - Show this help message
+Ã¢ÂÂ¢ /bid <amount> - Place an encrypted bid
+Ã¢ÂÂ¢ /status - Check auction status
+Ã¢ÂÂ¢ /help - Show this help message
 
 *Example:*
 \`/bid 100\` - Place a bid of 100
 
-ð Contract: \`${CONFIG.CONTRACT_ADDRESS.slice(0, 10)}...${CONFIG.CONTRACT_ADDRESS.slice(-8)}\`
-ð Network: Sepolia Testnet
+Ã°ÂÂÂ Contract: \`${CONFIG.CONTRACT_ADDRESS.slice(0, 10)}...${CONFIG.CONTRACT_ADDRESS.slice(-8)}\`
+Ã°ÂÂÂ Network: Sepolia Testnet
 
 _Your bids are encrypted using Zama's fhEVM technology._
     `;
@@ -297,7 +297,7 @@ _Your bids are encrypted using Zama's fhEVM technology._
   bot.onText(/\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const helpMessage = `
-ð *DecaDex Bot Help*
+Ã°ÂÂÂ *DecaDex Bot Help*
 
 *Available Commands:*
 
@@ -318,17 +318,17 @@ _Your bids are encrypted using Zama's fhEVM technology._
 
 *Troubleshooting:*
 
-â "Cannot bid: Auction has ended"
-  â The auction is closed
+Ã¢ÂÂ "Cannot bid: Auction has ended"
+  Ã¢ÂÂ The auction is closed
 
-â "Cannot bid: Auction time expired"
-  â Time limit reached, wait for finalization
+Ã¢ÂÂ "Cannot bid: Auction time expired"
+  Ã¢ÂÂ Time limit reached, wait for finalization
 
-â "Transaction reverted"
-  â Use /status to check auction state
+Ã¢ÂÂ "Transaction reverted"
+  Ã¢ÂÂ Use /status to check auction state
 
-â "FhEVM not initialized"
-  â Wait a moment and try again
+Ã¢ÂÂ "FhEVM not initialized"
+  Ã¢ÂÂ Wait a moment and try again
     `;
     await bot.sendMessage(chatId, helpMessage, { parse_mode: "Markdown" });
   });
@@ -338,39 +338,39 @@ _Your bids are encrypted using Zama's fhEVM technology._
     const chatId = msg.chat.id;
     
     try {
-      await bot.sendMessage(chatId, "ð Checking auction status...");
+      await bot.sendMessage(chatId, "Ã°ÂÂÂ Checking auction status...");
       
       const status = await checkAuctionStatus();
       
       // Status emoji and text
-      const statusEmoji = status.ended ? "ð´" : (status.isExpired ? "ð¡" : "ð¢");
+      const statusEmoji = status.ended ? "Ã°ÂÂÂ´" : (status.isExpired ? "Ã°ÂÂÂ¡" : "Ã°ÂÂÂ¢");
       const statusText = status.ended ? "ENDED" : (status.isExpired ? "EXPIRED (awaiting finalization)" : "ACTIVE");
       
       // Time info
       let timeInfo;
       if (status.isExpired) {
         const expiredSeconds = status.currentTime - status.auctionEndTime;
-        timeInfo = `â° Expired ${formatTimeRemaining(expiredSeconds)} ago`;
+        timeInfo = `Ã¢ÂÂ° Expired ${formatTimeRemaining(expiredSeconds)} ago`;
       } else {
-        timeInfo = `â±ï¸ Time remaining: ${formatTimeRemaining(status.remainingSeconds)}`;
+        timeInfo = `Ã¢ÂÂ±Ã¯Â¸Â Time remaining: ${formatTimeRemaining(status.remainingSeconds)}`;
       }
       
-      const message = `ð *Auction Status*
+      const message = `Ã°ÂÂÂ *Auction Status*
 
 ${statusEmoji} Status: *${statusText}*
-ð Contract: \`${CONFIG.CONTRACT_ADDRESS.slice(0, 10)}...\`
-ð¤ Beneficiary: \`${status.beneficiary.slice(0, 10)}...\`
+Ã°ÂÂÂ Contract: \`${CONFIG.CONTRACT_ADDRESS.slice(0, 10)}...\`
+Ã°ÂÂÂ¤ Beneficiary: \`${status.beneficiary.slice(0, 10)}...\`
 
-â° End Time: ${new Date(status.auctionEndTime * 1000).toISOString()}
+Ã¢ÂÂ° End Time: ${new Date(status.auctionEndTime * 1000).toISOString()}
 ${timeInfo}
 
-${status.canBid ? "â You can place bids now!" : (status.ended ? "â Bidding is closed." : "â ï¸ Auction time expired but not yet finalized.")}`;
+${status.canBid ? "Ã¢ÂÂ You can place bids now!" : (status.ended ? "Ã¢ÂÂ Bidding is closed." : "Ã¢ÂÂ Ã¯Â¸Â Auction time expired but not yet finalized.")}`;
       
       await bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
       
     } catch (error) {
       console.error("[STATUS] Error:", error);
-      await bot.sendMessage(chatId, `â Error checking status: ${parseRevertReason(error)}`);
+      await bot.sendMessage(chatId, `Ã¢ÂÂ Error checking status: ${parseRevertReason(error)}`);
     }
   });
 
@@ -389,18 +389,18 @@ ${status.canBid ? "â You can place bids now!" : (status.ended ? "â Bid
     // Validate amount
     const validation = validateBidAmount(amount);
     if (!validation.valid) {
-      await bot.sendMessage(chatId, `â Invalid amount: ${validation.error}\n\nPlease enter a number from ${BID_LIMITS.MIN} to ${BID_LIMITS.MAX}`);
+      await bot.sendMessage(chatId, `Ã¢ÂÂ Invalid amount: ${validation.error}\n\nPlease enter a number from ${BID_LIMITS.MIN} to ${BID_LIMITS.MAX}`);
       return;
     }
 
     // Check FhEVM initialization
     if (!isInitialized()) {
-      await bot.sendMessage(chatId, "â³ FhEVM not initialized yet. Please wait a moment and try again.");
+      await bot.sendMessage(chatId, "Ã¢ÂÂ³ FhEVM not initialized yet. Please wait a moment and try again.");
       return;
     }
 
     try {
-      await bot.sendMessage(chatId, `ð Processing bid...\n\nð° Amount: ${amount}\nâ³ Checking auction status...`);
+      await bot.sendMessage(chatId, `Ã°ÂÂÂ Processing bid...\n\nÃ°ÂÂÂ° Amount: ${amount}\nÃ¢ÂÂ³ Checking auction status...`);
 
       // === PRE-FLIGHT CHECKS ===
       console.log("[BID] Running pre-flight checks...");
@@ -409,23 +409,23 @@ ${status.canBid ? "â You can place bids now!" : (status.ended ? "â Bid
       
       // Check if auction has ended
       if (status.ended) {
-        await bot.sendMessage(chatId, "â Cannot bid: Auction has already ended.\n\nð¡ Use /status to see auction details.");
+        await bot.sendMessage(chatId, "Ã¢ÂÂ Cannot bid: Auction has already ended.\n\nÃ°ÂÂÂ¡ Use /status to see auction details.");
         return;
       }
 
       // Check auction end time
       if (status.isExpired) {
-        await bot.sendMessage(chatId, `â Cannot bid: Auction time has expired.
+        await bot.sendMessage(chatId, `Ã¢ÂÂ Cannot bid: Auction time has expired.
 
-â° Auction ended at: ${new Date(status.auctionEndTime * 1000).toISOString()}
-ð Current time: ${new Date().toISOString()}
+Ã¢ÂÂ° Auction ended at: ${new Date(status.auctionEndTime * 1000).toISOString()}
+Ã°ÂÂÂ Current time: ${new Date().toISOString()}
 
-ð¡ The auction is awaiting finalization by calling auctionEnd().`);
+Ã°ÂÂÂ¡ The auction is awaiting finalization by calling auctionEnd().`);
         return;
       }
 
       // Auction is active
-      await bot.sendMessage(chatId, `â Auction is active!\nâ±ï¸ Time remaining: ${formatTimeRemaining(status.remainingSeconds)}\n\nð Encrypting bid amount...`);
+      await bot.sendMessage(chatId, `Ã¢ÂÂ Auction is active!\nÃ¢ÂÂ±Ã¯Â¸Â Time remaining: ${formatTimeRemaining(status.remainingSeconds)}\n\nÃ°ÂÂÂ Encrypting bid amount...`);
 
       // DEBUG: Log info
       console.log("[BID] CONTRACT_ADDRESS:", CONFIG.CONTRACT_ADDRESS);
@@ -439,28 +439,28 @@ ${status.canBid ? "â You can place bids now!" : (status.ended ? "â Bid
       console.log("[BID] Encrypted handles:", encryptedBid.handles);
       console.log("[BID] Encrypted inputProof length:", encryptedBid.inputProof?.length);
       
-      await bot.sendMessage(chatId, "ð¤ Submitting encrypted bid to blockchain...");
+      await bot.sendMessage(chatId, "Ã°ÂÂÂ¤ Submitting encrypted bid to blockchain...");
 
       // Send transaction
       const tx = await contract.bid(encryptedBid.handles[0], encryptedBid.inputProof);
       
-      await bot.sendMessage(chatId, `â Transaction submitted!
+      await bot.sendMessage(chatId, `Ã¢ÂÂ Transaction submitted!
 
-ð° Amount: ${amount}
-ð Tx Hash: \`${tx.hash}\`
+Ã°ÂÂÂ° Amount: ${amount}
+Ã°ÂÂÂ Tx Hash: \`${tx.hash}\`
 
-â³ Waiting for confirmation...`, { parse_mode: "Markdown" });
+Ã¢ÂÂ³ Waiting for confirmation...`, { parse_mode: "Markdown" });
       
       // Wait for confirmation
       const receipt = await tx.wait();
       
-      await bot.sendMessage(chatId, `ð *Bid Confirmed!*
+      await bot.sendMessage(chatId, `Ã°ÂÂÂ *Bid Confirmed!*
 
-ð° Amount: ${amount}
-ð¦ Block: ${receipt.blockNumber}
-â½ Gas used: ${receipt.gasUsed.toString()}
+Ã°ÂÂÂ° Amount: ${amount}
+Ã°ÂÂÂ¦ Block: ${receipt.blockNumber}
+Ã¢ÂÂ½ Gas used: ${receipt.gasUsed.toString()}
 
-ð [View on Etherscan](https://sepolia.etherscan.io/tx/${tx.hash})`, { parse_mode: "Markdown" });
+Ã°ÂÂÂ [View on Etherscan](https://sepolia.etherscan.io/tx/${tx.hash})`, { parse_mode: "Markdown" });
       
     } catch (error) {
       console.error("[BID] Error:", error);
@@ -470,10 +470,10 @@ ${status.canBid ? "â You can place bids now!" : (status.ended ? "â Bid
       // Provide specific guidance based on error
       let guidance = "";
       if (reason.includes("reverted")) {
-        guidance = "\n\nð¡ *Possible causes:*\nâ¢ Auction has ended\nâ¢ Invalid bid parameters\nâ¢ Contract conditions not met\n\nUse /status to check auction state.";
+        guidance = "\n\nÃ°ÂÂÂ¡ *Possible causes:*\nÃ¢ÂÂ¢ Auction has ended\nÃ¢ÂÂ¢ Invalid bid parameters\nÃ¢ÂÂ¢ Contract conditions not met\n\nUse /status to check auction state.";
       }
       
-      await bot.sendMessage(chatId, `â *Bid Failed!*
+      await bot.sendMessage(chatId, `Ã¢ÂÂ *Bid Failed!*
 
 Error: ${reason}${guidance}`, { parse_mode: "Markdown" });
     }
